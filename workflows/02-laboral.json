@@ -1,0 +1,315 @@
+{
+  "name": "AI Personal Assistant - Laboral",
+  "nodes": [
+    {
+      "parameters": {
+        "triggerTimes": {
+          "item": [
+            {
+              "mode": "everyDay",
+              "hour": 8,
+              "minute": 30
+            }
+          ]
+        }
+      },
+      "id": "schedule",
+      "name": "Cada mañana - Playwright",
+      "type": "n8n-nodes-base.cron",
+      "typeVersion": 1.2,
+      "position": [-1200, 80]
+    },
+    {
+      "parameters": {},
+      "id": "manual",
+      "name": "Ejecución manual",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [-1200, 240]
+    },
+    {
+      "parameters": {
+        "httpMethod": "GET",
+        "path": "assistant/playwright-jobs",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook",
+      "webhookId": "playwright-jobs-laboral",
+      "name": "Webhook - Playwright Jobs",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [-1200, 400]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Preparar parámetros de búsqueda para el scraper Playwright/LinkedIn\n// Acepta parámetros del webhook o usa los valores por defecto del proyecto\nconst input = $json ?? {};\nconst isWebhook = ['query', 'body', 'headers', 'params'].some(k => Object.prototype.hasOwnProperty.call(input, k));\nconst incoming = input.query && typeof input.query === 'object'\n  ? input.query\n  : (input.body && typeof input.body === 'object' ? input.body : input);\n\nif (isWebhook && incoming.source && String(incoming.source).trim().toLowerCase() !== 'linkedin') {\n  throw new Error('Este workflow solo acepta source=linkedin');\n}\n\nconst textParam = v => Array.isArray(v)\n  ? v.map(String).map(s => s.trim()).filter(Boolean).join(',')\n  : String(v ?? '').trim();\n\nconst boundedInt = (v, name, min, max) => {\n  if (v === undefined || v === null || v === '') return null;\n  const n = Number(v);\n  if (!Number.isInteger(n) || n < min || n > max) throw new Error(`${name} debe ser entero entre ${min} y ${max}`);\n  return String(n);\n};\n\n// Parámetros por defecto alineados con config.js del scraper\nconst location = textParam(incoming.location) || 'Barcelona Metropolitan Area';\nconst keywords = textParam(incoming.keywords) ||\n  'Industrial Engineer,Supply Chain,Project Manager,Business Analyst,Operations,Digital Transformation,Aerospace,Automation,Strategy,Consultant';\n\nconst requestTimeout = 180000;\nconst baseUrl = String($env.PLAYWRIGHT_BASE_URL || 'http://playwright:3000').replace(/\\/+$/, '');\n\nconst params = new URLSearchParams();\nparams.set('location', location);\nparams.set('keywords', keywords);\n\nconst optionals = [\n  ['termsPerQuery', boundedInt(incoming.termsPerQuery, 'termsPerQuery', 1, 20)],\n  ['maxJobsPerSearch', boundedInt(incoming.maxJobsPerSearch, 'maxJobsPerSearch', 1, 200)],\n  ['maxScrollSteps', boundedInt(incoming.maxScrollSteps, 'maxScrollSteps', 0, 20)],\n  ['gotoTimeout', boundedInt(incoming.gotoTimeout, 'gotoTimeout', 1000, 120000)],\n  ['selectorTimeout', boundedInt(incoming.selectorTimeout, 'selectorTimeout', 1000, 60000)],\n];\nfor (const [name, value] of optionals) {\n  if (value !== null) params.set(name, value);\n}\n\nreturn [{ json: {\n  source: 'linkedin',\n  targetUrl: `${baseUrl}/linkedin?${params.toString()}`,\n  requestTimeout,\n  requestedAt: new Date().toISOString(),\n}}];"
+      },
+      "id": "prepare",
+      "name": "Preparar solicitudes Playwright",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-940, 240]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{$json.targetUrl}}",
+        "options": {
+          "timeout": "={{$json.requestTimeout}}"
+        }
+      },
+      "id": "scrape",
+      "name": "HTTP - Ejecutar scraper Playwright",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [-680, 240],
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 5000,
+      "onError": "continueRegularOutput",
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// Normalizar datos del scraper Playwright.\n// El scraper devuelve un array de ofertas o un objeto con campo 'jobs'/'data'.\n// Aplica la misma lógica de normalización que normalize.js del scraper.\nconst t = v => String(v ?? '').replace(/\\s+/g, ' ').trim();\nconst cleanTitle = v => {\n  const s = t(v); const h = s.length / 2;\n  return Number.isInteger(h) && s.slice(0, h) === s.slice(h) ? s.slice(0, h).trim() : s;\n};\nconst normalizeLink = v => {\n  const raw = t(v); if (!raw) return null;\n  try {\n    const url = new URL(raw, 'https://www.linkedin.com');\n    url.hostname = url.hostname.toLowerCase().replace(/^www\\./, '');\n    url.search = ''; url.hash = '';\n    url.pathname = url.pathname.replace(/\\/+$/, '') || '/';\n    return url.href;\n  } catch { return raw; }\n};\nconst extractId = link => link?.match(/(?:-|%2D|\\/view\\/)(\\d+)(?:[/?]|$)/i)?.[1] || null;\nconst ARRAY_FIELDS = ['skills', 'requirements', 'education', 'languages', 'experience', 'detectedKeywords'];\nconst expand = v => {\n  if (Array.isArray(v)) return v;\n  if (v && Array.isArray(v.body)) return expand(v.body);\n  if (v && Array.isArray(v.jobs)) return v.jobs;\n  if (v && Array.isArray(v.data)) return v.data;\n  return v && typeof v === 'object' ? [v] : [];\n};\n\nconst now = new Date().toISOString();\nconst output = [];\nconst inputs = $input.all();\nconst prepared = $('Preparar solicitudes Playwright').all();\n\nfor (let i = 0; i < inputs.length; i++) {\n  const item = inputs[i];\n  const response = item.json;\n  // Detectar error del scraper\n  const errMsg = item.error?.message || response?.error?.message || (typeof response?.error === 'string' ? response.error : null);\n  if (errMsg) {\n    output.push({ json: {\n      __playwrightError: true, source: 'linkedin', error_message: t(errMsg),\n      item_key: '', title: '', payload_json: JSON.stringify({ source: 'linkedin', error_message: t(errMsg) })\n    }});\n    continue;\n  }\n  const jobs = expand(response);\n  let produced = 0;\n  for (const raw of jobs) {\n    if (!raw || typeof raw !== 'object') continue;\n    if (raw.source && String(raw.source).toLowerCase() !== 'linkedin') continue;\n    const link = normalizeLink(raw.link);\n    const title = cleanTitle(raw.title);\n    if (!title) continue;\n    const id = t(raw.id) || extractId(link);\n    const company = t(raw.company) || null;\n    const location = t(raw.location) || null;\n    const fallback = [company, title, location].map(t).join('|').toLocaleLowerCase();\n    const identity = link ? `url:${link}` : (id ? `id:${id}` : `fallback:${fallback}`);\n    const job = {\n      ...raw, id: id || null, title, company, location, link,\n      source: 'linkedin', scrapedAt: raw.scrapedAt || now,\n      item_key: `job:linkedin:${identity}`,\n    };\n    for (const f of ARRAY_FIELDS) job[f] = Array.isArray(job[f]) ? [...new Set(job[f].map(t).filter(Boolean))] : [];\n    // Campo de texto para filtrado y scoring\n    job.fullText = t([title, raw.description, raw.summary, job.skills.join(' '), job.requirements.join(' ')].filter(Boolean).join(' '));\n    job.payload_json = JSON.stringify({ ...job });\n    output.push({ json: job });\n    produced++;\n  }\n  if (!produced) {\n    output.push({ json: {\n      __playwrightEmpty: true, source: 'linkedin', error_message: 'No se encontraron ofertas',\n      item_key: '', title: '', payload_json: JSON.stringify({ source: 'linkedin', jobs: [] })\n    }});\n  }\n}\nreturn output;"
+      },
+      "id": "normalize",
+      "name": "Normalizar y validar ofertas",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-420, 240]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Filtrar ofertas irrelevantes antes de la deduplicación.\n// Basado en las listas INCLUDE/EXCLUDE de playwright/config.js + criterios de nivel y ubicación.\n\nconst ROLES_INCLUDE = [\n  'project manager', 'program manager', 'pmo', 'business analyst', 'operations',\n  'process improvement', 'continuous improvement', 'lean', 'operational excellence',\n  'industrial engineer', 'industrial engineering', 'supply chain', 'logistics',\n  'digital transformation', 'innovation', 'consultant', 'consulting', 'strategy',\n  'business intelligence', 'data analyst', 'product manager', 'product owner',\n  'planning', 'manufacturing', 'automation', 'technology', 'aerospace',\n  'aeronautical', 'aeroespacial', 'aeronautica', 'espacio', 'space',\n  'inteligencia artificial', 'artificial intelligence', 'project engineer',\n  'program management', 'transformation', 'change management', 'industrialization',\n  'performance', 'production planning', 's&op', 'planning engineer',\n  'business process', 'industrial performance', 'ingeniería industrial',\n  'ingeniería de organización', 'engineer', 'engineering', 'associate',\n  'graduate', 'junior', 'trainee', 'entry level', 'young talent',\n];\n\nconst ROLES_EXCLUDE = [\n  'mecánico', 'mechanical engineer', 'electrical engineer', 'electrónico',\n  'electronics engineer', 'embedded', 'firmware', 'climatización', 'hvac',\n  'electromecánico', 'robotics engineer', 'validation engineer', 'qa engineer',\n  'electrical design', 'mechanical design', 'cad engineer', 'plc', 'scada',\n  'instrumentación', 'civil engineer', 'obras', 'peritaje', 'patente',\n  'mantenimiento', 'ferroviario', 'head of', 'chief', 'vp ', 'vice president',\n  'director', 'sales engineer', 'account manager', 'sales manager',\n  'marketing manager', 'retail', 'hospitality', 'freelance',\n];\n\n// Niveles a excluir (experiencia elevada)\nconst LEVEL_EXCLUDE = [\n  /\\bsenior\\b/i, /\\bsr\\.?\\b/i, /\\blead\\b/i, /\\bprincipal\\b/i, /\\bstaff\\b/i,\n  /\\bhead of\\b/i, /\\bdirector\\b/i, /\\bmanaging director\\b/i,\n];\n\n// Ubicaciones aceptadas (si hay info de location)\nconst LOCATION_OK = [\n  'barcelona', 'madrid', 'spain', 'españa', 'remote', 'hybrid', 'remoto',\n  'híbrido', 'hibrid', 'spain', 'cataluña', 'catalunya', 'catalonia',\n  'valencia', 'bilbao', 'sevilla', 'zaragoza', 'malaga'\n];\n\nconst includes = (text, terms) => terms.some(t => text.includes(t.toLowerCase()));\nconst matchesAny = (text, patterns) => patterns.some(p => p.test(text));\n\nconst output = [];\nfor (const item of $input.all()) {\n  const job = item.json;\n  // Pasar errores/vacíos sin filtrar\n  if (job.__playwrightError || job.__playwrightEmpty) { output.push(item); continue; }\n  if (!job.title) continue;\n\n  const titleLow = (job.title || '').toLowerCase();\n  const fullLow = (job.fullText || job.title || '').toLowerCase();\n\n  // 1. Debe pasar el filtro de inclusión (título o texto completo)\n  if (!includes(titleLow, ROLES_INCLUDE) && !includes(fullLow, ROLES_INCLUDE)) continue;\n\n  // 2. No debe contener términos excluidos en el TÍTULO\n  if (includes(titleLow, ROLES_EXCLUDE)) continue;\n\n  // 3. Excluir niveles senior/director por título\n  if (matchesAny(titleLow, LEVEL_EXCLUDE)) {\n    // Permitir si también contiene junior/graduate/trainee (p.ej. \"Senior Project para Junior\")\n    const hasJunior = /\\b(junior|graduate|trainee|intern|entry.level|young)\\b/i.test(titleLow);\n    if (!hasJunior) continue;\n  }\n\n  // 4. Filtro de ubicación: si hay location y no coincide con ninguna aceptada, descartar\n  if (job.location) {\n    const locLow = job.location.toLowerCase();\n    if (!LOCATION_OK.some(l => locLow.includes(l))) continue;\n  }\n\n  output.push(item);\n}\nreturn output.length ? output : [{ json: {\n  __noResults: true, source: 'linkedin', title: '', item_key: '',\n  payload_json: JSON.stringify({ source: 'linkedin', message: 'Sin ofertas tras filtrado' })\n}}];"
+      },
+      "id": "filter",
+      "name": "Filtrar sectores objetivo",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-160, 240]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "WITH candidate (item_key, source, title, payload, is_control) AS (\n  VALUES (\n    NULLIF('{{$json.item_key ? $json.item_key.replace(/'/g, \"''\") : \"\"}}', ''),\n    NULLIF('{{$json.source ? $json.source.replace(/'/g, \"''\") : \"linkedin\"}}', ''),\n    NULLIF('{{$json.title ? $json.title.replace(/'/g, \"''\") : \"\"}}', ''),\n    '{{$json.payload_json ? $json.payload_json.replace(/'/g, \"''\") : \"{}\"}}'::jsonb,\n    {{$json.__playwrightError === true || $json.__playwrightEmpty === true || $json.__noResults === true ? 'true' : 'false'}}\n  )\n),\ninserted AS (\n  INSERT INTO assistant_processed_items (item_key, source, title, payload)\n  SELECT item_key, source, title, payload\n  FROM candidate\n  WHERE NOT is_control AND item_key IS NOT NULL\n  ON CONFLICT (item_key) DO NOTHING\n  RETURNING item_key\n)\nSELECT\n  c.item_key,\n  c.source,\n  c.title,\n  c.payload,\n  c.is_control,\n  (i.item_key IS NOT NULL) AS inserted\nFROM candidate c\nLEFT JOIN inserted i ON i.item_key = c.item_key;",
+        "options": {}
+      },
+      "id": "dedupe",
+      "name": "Evitar duplicados PostgreSQL",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [100, 240],
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "Postgres assistant"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Extraer solo las ofertas NUEVAS (inserted=true) y calcular scoring determinista.\n// Empresas prioritarias del proyecto (conservadas de la configuración existente).\n\nconst PRIORITY_COMPANIES = [\n  'airbus', 'boeing', 'indra', 'thales', 'leonardo', 'safran', 'gmv', 'sener',\n  'esa', 'nasa', 'spacex', 'arianespace', 'deimos', 'elecnor', 'altran', 'capgemini',\n  'accenture', 'mckinsey', 'bcg', 'bain', 'deloitte', 'pwc', 'kpmg', 'ey',\n  'siemens', 'general electric', 'honeywell', 'collins aerospace', 'raytheon',\n  'northrop grumman', 'lockheed martin', 'dassault', 'rolls royce', 'pratt whitney',\n  'ge aviation', 'mtorres', 'aernnova', 'alestis', 'aciturri', 'cesa', 'iberia',\n  'vueling', 'aena', 'enaire', 'boeing españa', 'airbus spain', 'aer lingus',\n  'seat', 'volkswagen', 'tesla', 'bmw', 'mercedes', 'caterpillar', 'volvo',\n  'amazon', 'google', 'microsoft', 'apple', 'meta', 'ibm', 'oracle', 'sap',\n  'palantir', 'salesforce', 'workday', 'servicenow', 'splunk', 'datadog',\n];\n\nconst ROLE_SCORES = {\n  aerospace: 30, aeroespacial: 30, aeronautical: 30, 'espacio': 25,\n  'artificial intelligence': 25, 'inteligencia artificial': 25, automation: 22,\n  'digital transformation': 20, transformacion: 18, 'supply chain': 18,\n  operations: 15, 'project manager': 18, 'project engineer': 18,\n  'program manager': 16, 'business analyst': 15, consultant: 14, strategy: 14,\n  manufacturing: 13, 'industrial engineer': 18, 'ingeniería industrial': 18,\n  planning: 12, logistics: 12, lean: 12, 'continuous improvement': 12,\n  technology: 10, engineering: 10, engineer: 8,\n};\n\nconst LEVEL_BONUS = {\n  intern: 10, internship: 10, trainee: 10, graduate: 15, junior: 15,\n  'entry level': 12, 'young talent': 14, associate: 10,\n};\n\nconst LOCATION_BONUS = {\n  barcelona: 20, madrid: 18, spain: 15, españa: 15, remote: 12, hybrid: 10,\n  remoto: 12, híbrido: 10, cataluña: 14, catalunya: 14,\n};\n\nconst t = v => String(v ?? '').replace(/\\s+/g, ' ').trim();\n\nfunction computeScore(payload) {\n  let score = 0;\n  const title = (payload.title || '').toLowerCase();\n  const full = (payload.fullText || payload.description || payload.title || '').toLowerCase();\n  const company = (payload.company || '').toLowerCase();\n  const location = (payload.location || '').toLowerCase();\n  const modality = (payload.remote === true || /remoto|remote/i.test(full)) ? 'remote' :\n                   (payload.hybrid === true || /h[ií]brido|hybrid/i.test(full)) ? 'hybrid' : 'presencial';\n\n  // Scoring por rol (busca en título primero, luego en texto)\n  for (const [term, pts] of Object.entries(ROLE_SCORES)) {\n    if (title.includes(term)) { score += pts; break; }\n  }\n  // Bonus menor si el rol aparece solo en texto completo\n  for (const [term, pts] of Object.entries(ROLE_SCORES)) {\n    if (!title.includes(term) && full.includes(term)) { score += Math.floor(pts * 0.4); break; }\n  }\n\n  // Nivel profesional\n  for (const [level, pts] of Object.entries(LEVEL_BONUS)) {\n    if (title.includes(level) || full.includes(level)) { score += pts; break; }\n  }\n\n  // Ubicación\n  for (const [loc, pts] of Object.entries(LOCATION_BONUS)) {\n    if (location.includes(loc)) { score += pts; break; }\n  }\n  // Modalidad\n  if (modality === 'remote') score += 8;\n  else if (modality === 'hybrid') score += 5;\n\n  // Empresa prioritaria\n  for (const co of PRIORITY_COMPANIES) {\n    if (company.includes(co)) { score += 20; break; }\n  }\n\n  // Salario (si existe)\n  if (payload.salary && String(payload.salary).trim()) {\n    const match = String(payload.salary).match(/(\\d[\\d.,]+)/);\n    if (match) {\n      const sal = parseFloat(match[1].replace(',', '.').replace('.', ''));\n      if (sal > 40000) score += 15;\n      else if (sal > 30000) score += 10;\n      else if (sal > 20000) score += 5;\n    } else {\n      score += 5; // tiene info salarial aunque no parseable\n    }\n  }\n\n  return Math.min(score, 100);\n}\n\nconst jobs = $input.all()\n  .filter(item =>\n    item.json.inserted === true &&\n    item.json.is_control !== true &&\n    item.json.source === 'linkedin'\n  )\n  .map(item => {\n    const payload = item.json.payload && typeof item.json.payload === 'object'\n      ? item.json.payload : {};\n    const job = {\n      ...payload,\n      item_key: item.json.item_key || payload.item_key,\n      score: computeScore(payload),\n    };\n    return { json: job };\n  });\n\nreturn jobs;"
+      },
+      "id": "scoring",
+      "name": "Scoring de ofertas",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [360, 240]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Seleccionar las 3 mejores ofertas por puntuación.\n// Umbral mínimo: 20 puntos para que la oferta se considere relevante.\nconst MIN_SCORE = 20;\nconst MAX_OFFERS = 3;\n\nconst all = $input.all().map(i => i.json);\n\nconst top = all\n  .filter(job => (job.score || 0) >= MIN_SCORE)\n  .sort((a, b) => (b.score || 0) - (a.score || 0))\n  .slice(0, MAX_OFFERS);\n\nif (top.length === 0) {\n  return [{ json: { __noTopOffers: true, totalScored: all.length } }];\n}\n\nreturn top.map(job => ({ json: job }));"
+      },
+      "id": "top3",
+      "name": "Seleccionar TOP 3",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [620, 240]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{\"https://generativelanguage.googleapis.com/v1beta/models/\" + $env.GEMINI_MODEL + \":generateContent?key=\" + $env.GEMINI_API_KEY}}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ JSON.stringify({\n  contents: [{\n    parts: [{\n      text: 'Eres el asistente personal de un ingeniero industrial interesado en posiciones de junior/graduate en los sectores: aeroespacial, espacio, IA, automatización, industria, supply chain, consultoría, transformación digital. Genera un resumen breve (máximo 60 palabras) de por qué esta oferta es relevante para el perfil, en español. Sé concreto y no inventes datos. Responde SOLO JSON con los campos: resumen (string), motivo_fit (string, 1 frase corta). Oferta: título=' + ($json.title || '') + ', empresa=' + ($json.company || '') + ', ubicación=' + ($json.location || '') + ', descripción=' + (($json.fullText || $json.description || '').substring(0, 800))\n    }]\n  }],\n  generationConfig: {\n    responseMimeType: 'application/json',\n    responseSchema: {\n      type: 'OBJECT',\n      properties: {\n        resumen: { type: 'STRING' },\n        motivo_fit: { type: 'STRING' }\n      },\n      required: ['resumen', 'motivo_fit']\n    },\n    maxOutputTokens: 256,\n    temperature: 0.3\n  }\n}) }}",
+        "options": {}
+      },
+      "id": "gemini",
+      "name": "Gemini - Resumir oferta",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [880, 240],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Validar respuesta de Gemini y fusionar con los datos de la oferta.\n// Si Gemini falla, usamos fallback con la descripción original.\nlet geminiData = null;\ntry {\n  const raw = $json.candidates?.[0]?.content?.parts?.[0]?.text ?? null;\n  if (raw) {\n    const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw;\n    if (parsed && typeof parsed.resumen === 'string' && parsed.resumen.trim()) {\n      geminiData = parsed;\n    }\n  }\n} catch (e) {\n  // Gemini devolvió algo no parseable: usamos fallback\n}\n\n// Recuperar la oferta original del nodo TOP 3\n// (la referencia se mantiene en el item porque n8n pasa el item a cada nodo)\nconst original = $('Seleccionar TOP 3').item.json;\n\nconst resumen = geminiData?.resumen ||\n  (original.fullText || original.description || '').substring(0, 200) ||\n  'Sin descripción disponible.';\n\nreturn [{ json: {\n  ...original,\n  resumen,\n  motivo_fit: geminiData?.motivo_fit || '',\n}}];"
+      },
+      "id": "parse-gemini",
+      "name": "Validar JSON Gemini",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1140, 240]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Construir el mensaje de Telegram para una oferta.\n// Formato HTML compatible con Telegram.\nconst job = $json;\n\nconst escapeHtml = s => String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');\n\nconst titulo = escapeHtml(job.title || 'Sin título');\nconst empresa = escapeHtml(job.company || 'Empresa desconocida');\nconst ubicacion = escapeHtml(job.location || 'Ubicación no especificada');\nconst score = job.score || 0;\nconst resumen = escapeHtml((job.resumen || '').substring(0, 300));\nconst enlace = job.link || '';\n\nlet msg = '';\nmsg += `💼 <b>${titulo}</b>\\n\\n`;\nmsg += `🏢 <b>Empresa:</b> ${empresa}\\n`;\nmsg += `📍 <b>Ubicación:</b> ${ubicacion}\\n`;\nmsg += `⭐ <b>Puntuación:</b> ${score}/100\\n\\n`;\nif (resumen) msg += `📝 <b>Resumen:</b>\\n${resumen}\\n\\n`;\nif (enlace) msg += `🔗 <a href=\"${enlace}\">Ver oferta en LinkedIn</a>\\n`;\nmsg += '────────────────────';\n\nreturn [{ json: { ...job, telegramMessage: msg } }];"
+      },
+      "id": "build-message",
+      "name": "Construir mensaje Telegram",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1400, 240]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{\"https://api.telegram.org/bot\" + $env.TELEGRAM_BOT_TOKEN + \"/sendMessage\"}}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ JSON.stringify({ chat_id: $env.TELEGRAM_CHAT_ID, text: $json.telegramMessage, parse_mode: 'HTML', disable_web_page_preview: false }) }}",
+        "options": {}
+      },
+      "id": "telegram",
+      "name": "Telegram - Enviar oferta",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1660, 240],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 3000,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Rama de control: manejar casos sin ofertas o errores del scraper\n// Este nodo recibe los items is_control=true o __noTopOffers de los nodos anteriores\nconst inputs = $input.all();\n\n// Caso: no hay ofertas TOP\nconst noTop = inputs.some(i => i.json.__noTopOffers === true);\nif (noTop) {\n  return [{ json: { type: 'no_offers', message: 'No se han encontrado nuevas ofertas relevantes hoy.' } }];\n}\n\n// Caso: error del scraper\nconst errors = inputs.filter(i => i.json.__playwrightError === true);\nif (errors.length > 0) {\n  const msgs = errors.map(e => e.json.error_message || 'Error desconocido').join(', ');\n  return [{ json: { type: 'scraper_error', message: `Error en el scraper: ${msgs}` } }];\n}\n\n// Caso genérico\nreturn [{ json: { type: 'no_results', message: 'No hay resultados que notificar.' } }];"
+      },
+      "id": "no-offers-handler",
+      "name": "Sin ofertas - Preparar mensaje",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [620, 460]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{\"https://api.telegram.org/bot\" + $env.TELEGRAM_BOT_TOKEN + \"/sendMessage\"}}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ JSON.stringify({ chat_id: $env.TELEGRAM_CHAT_ID, text: '🔍 <b>Búsqueda laboral completada</b>\\n\\nℹ️ ' + $json.message, parse_mode: 'HTML' }) }}",
+        "options": {}
+      },
+      "id": "telegram-no-offers",
+      "name": "Telegram - Sin ofertas",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [880, 460],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{$json}}",
+        "options": {}
+      },
+      "id": "respond",
+      "name": "Responder webhook Playwright",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [1140, 460],
+      "onError": "continueRegularOutput"
+    }
+  ],
+  "connections": {
+    "Cada mañana - Playwright": {
+      "main": [[{ "node": "Preparar solicitudes Playwright", "type": "main", "index": 0 }]]
+    },
+    "Ejecución manual": {
+      "main": [[{ "node": "Preparar solicitudes Playwright", "type": "main", "index": 0 }]]
+    },
+    "Webhook - Playwright Jobs": {
+      "main": [[{ "node": "Preparar solicitudes Playwright", "type": "main", "index": 0 }]]
+    },
+    "Preparar solicitudes Playwright": {
+      "main": [[{ "node": "HTTP - Ejecutar scraper Playwright", "type": "main", "index": 0 }]]
+    },
+    "HTTP - Ejecutar scraper Playwright": {
+      "main": [[{ "node": "Normalizar y validar ofertas", "type": "main", "index": 0 }]]
+    },
+    "Normalizar y validar ofertas": {
+      "main": [[{ "node": "Filtrar sectores objetivo", "type": "main", "index": 0 }]]
+    },
+    "Filtrar sectores objetivo": {
+      "main": [[{ "node": "Evitar duplicados PostgreSQL", "type": "main", "index": 0 }]]
+    },
+    "Evitar duplicados PostgreSQL": {
+      "main": [[{ "node": "Scoring de ofertas", "type": "main", "index": 0 }]]
+    },
+    "Scoring de ofertas": {
+      "main": [[{ "node": "Seleccionar TOP 3", "type": "main", "index": 0 }]]
+    },
+    "Seleccionar TOP 3": {
+      "main": [
+        [{ "node": "Gemini - Resumir oferta", "type": "main", "index": 0 }],
+        [{ "node": "Sin ofertas - Preparar mensaje", "type": "main", "index": 0 }]
+      ]
+    },
+    "Gemini - Resumir oferta": {
+      "main": [[{ "node": "Validar JSON Gemini", "type": "main", "index": 0 }]]
+    },
+    "Validar JSON Gemini": {
+      "main": [[{ "node": "Construir mensaje Telegram", "type": "main", "index": 0 }]]
+    },
+    "Construir mensaje Telegram": {
+      "main": [[{ "node": "Telegram - Enviar oferta", "type": "main", "index": 0 }]]
+    },
+    "Sin ofertas - Preparar mensaje": {
+      "main": [
+        [{ "node": "Telegram - Sin ofertas", "type": "main", "index": 0 }],
+        [{ "node": "Responder webhook Playwright", "type": "main", "index": 0 }]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true
+  },
+  "active": false,
+  "versionId": "2"
+}
