@@ -157,6 +157,17 @@ jobs:
           set -euo pipefail
           test "$(uname -m)" = "${{ matrix.host_arch }}"
 
+      - name: Install Windows ARM64 OpenSSL build dependency
+        if: ${{ matrix.target == 'windows-arm64' }}
+        shell: powershell
+        run: |
+          $vcpkg = Join-Path $env:RUNNER_TEMP 'vcpkg'
+          git clone --depth 1 https://github.com/microsoft/vcpkg $vcpkg
+          & (Join-Path $vcpkg 'bootstrap-vcpkg.bat') -disableMetrics
+          & (Join-Path $vcpkg 'vcpkg.exe') install openssl:arm64-windows
+          "VCPKG_ROOT=$vcpkg" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          'VCPKG_DEFAULT_TRIPLET=arm64-windows' | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+
       - name: Install backend test dependencies
         shell: bash
         run: |
@@ -167,6 +178,8 @@ jobs:
       - name: Run backend regression tests
         working-directory: backend
         shell: bash
+        env:
+          POSTGRES_PASSWORD: ci-test-password-not-a-runtime-secret
         run: python -m pytest -q tests/
 
       - name: Install frontend dependencies deterministically

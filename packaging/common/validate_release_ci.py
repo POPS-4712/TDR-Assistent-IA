@@ -65,6 +65,10 @@ def main() -> int:
             fail(f"{target} matrix metadata is inconsistent")
         if set(str(entry.get("expected_files", "")).split(",")) != expected["files"]:
             fail(f"{target} expected filenames are inconsistent")
+    build_steps = "\n".join(str(step) for step in build.get("steps", []))
+    for required_build_guard in ("POSTGRES_PASSWORD", "openssl:arm64-windows", "--architecture-verified"):
+        if required_build_guard not in build_steps:
+            fail("native build job omits a required test-environment or architecture guard")
     preflight_steps = "\n".join(str(step) for step in jobs.get("preflight", {}).get("steps", []))
     for required_check in ("git status --porcelain", "validate_release_ci.py", "validate_definitions.py", "VERSION"):
         if required_check not in preflight_steps:
