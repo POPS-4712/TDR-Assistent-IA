@@ -412,8 +412,9 @@ class TestAutomationManager:
     @pytest.mark.asyncio
     async def test_preflight_is_read_only(self, automation_manager, mock_n8n_client):
         """Preflight reports readiness without importing a workflow or touching n8n."""
+        account_resolution = {"accounts": [], "credential_mappings": [], "missing_requirements": []}
         with patch.object(automation_manager, '_validate_dependencies', return_value=[]):
-            with patch.object(automation_manager, '_validate_credentials', return_value=[]):
+            with patch.object(automation_manager, '_resolve_manifest_accounts', return_value=account_resolution):
                 with patch.object(automation_manager, '_validate_runtime_dependencies', return_value=[]):
                     result = await automation_manager.preflight_automation("test-auto")
         assert result["automation_id"] == "test-auto"
