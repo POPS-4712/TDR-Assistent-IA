@@ -1,0 +1,1516 @@
+﻿[
+    {
+        "automation":  "email-assistant",
+        "copy_workflow":  "automations/email-assistant/workflow.json",
+        "source_workflow":  "workflows/01-email-manager.json",
+        "source_copy_same_hash":  false,
+        "node":  "Gmail Trigger",
+        "node_type":  "n8n-nodes-base.gmailTrigger",
+        "credential_types":  [
+                                 "gmailOAuth2"
+                             ],
+        "providers":  [
+                          "google"
+                      ],
+        "required_secret_or_reference":  [
+                                             "n8n credential type: gmailOAuth2"
+                                         ],
+        "environment_variables":  {
+
+                                  },
+        "http_host":  null,
+        "internal_dependencies":  [
+
+                                  ],
+        "external_dependency":  null,
+        "parameter_fields":  {
+
+                             }
+    },
+    {
+        "automation":  "email-assistant",
+        "copy_workflow":  "automations/email-assistant/workflow.json",
+        "source_workflow":  "workflows/01-email-manager.json",
+        "source_copy_same_hash":  false,
+        "node":  "Gmail - Listar mensajes",
+        "node_type":  "n8n-nodes-base.gmail",
+        "credential_types":  [
+                                 "gmailOAuth2"
+                             ],
+        "providers":  [
+                          "google"
+                      ],
+        "required_secret_or_reference":  [
+                                             "n8n credential type: gmailOAuth2"
+                                         ],
+        "environment_variables":  {
+
+                                  },
+        "http_host":  null,
+        "internal_dependencies":  [
+
+                                  ],
+        "external_dependency":  null,
+        "parameter_fields":  [
+                                 "operation",
+                                 "options",
+                                 "returnAll"
+                             ]
+    },
+    {
+        "automation":  "email-assistant",
+        "copy_workflow":  "automations/email-assistant/workflow.json",
+        "source_workflow":  "workflows/01-email-manager.json",
+        "source_copy_same_hash":  false,
+        "node":  "Evitar duplicados",
+        "node_type":  "n8n-nodes-base.postgres",
+        "credential_types":  [
+                                 "postgres"
+                             ],
+        "providers":  [
+                          "postgresql"
+                      ],
+        "required_secret_or_reference":  [
+                                             "n8n credential type: postgres"
+                                         ],
+        "environment_variables":  {
+
+                                  },
+        "http_host":  null,
+        "internal_dependencies":  [
+                                      "postgresql"
+                                  ],
+        "external_dependency":  null,
+        "parameter_fields":  [
+                                 "operation",
+                                 "options",
+                                 "query"
+                             ]
+    },
+    {
+        "automation":  "email-assistant",
+        "copy_workflow":  "automations/email-assistant/workflow.json",
+        "source_workflow":  "workflows/01-email-manager.json",
+        "source_copy_same_hash":  false,
+        "node":  "Gemini - Secretary Analysis",
+        "node_type":  "n8n-nodes-base.httpRequest",
+        "credential_types":  [
+
+                             ],
+        "providers":  [
+                          "gemini"
+                      ],
+        "required_secret_or_reference":  [
+                                             "environment variable: GEMINI_API_KEY",
+                                             "environment variable: GEMINI_MODEL",
+                                             "environment variable: TZ"
+                                         ],
+        "environment_variables":  [
+                                      "GEMINI_API_KEY",
+                                      "GEMINI_MODEL",
+                                      "TZ"
+                                  ],
+        "http_host":  "generativelanguage.googleapis.com",
+        "internal_dependencies":  [
+
+                                  ],
+        "external_dependency":  "generativelanguage.googleapis.com",
+        "parameter_fields":  [
+                                 "body",
+                                 "contentType",
+                                 "headerParameters",
+                                 "method",
+                                 "options",
+                                 "rawContentType",
+                                 "sendBody",
+                                 "sendHeaders",
+                                 "url"
+                             ]
+    },
+    {
+        "automation":  "email-assistant",
+        "copy_workflow":  "automations/email-assistant/workflow.json",
+        "source_workflow":  "workflows/01-email-manager.json",
+        "source_copy_same_hash":  false,
+        "node":  "Validar evento nuevo",
+        "node_type":  "n8n-nodes-base.code",
+        "credential_types":  [
+
+                             ],
+        "providers":  [
+
+                      ],
+        "required_secret_or_reference":  [
+                                             "environment variable: TZ"
+                                         ],
+        "environment_variables":  "TZ",
+        "http_host":  null,
+        "internal_dependencies":  [
+                                      "playwright"
+                                  ],
+        "external_dependency":  null,
+        "parameter_fields":  "jsCode"
+    },
+    {
+        "automation":  "email-assistant",
+        "copy_workflow":  "automations/email-assistant/workflow.json",
+        "source_workflow":  "workflows/01-email-manager.json",
+        "source_copy_same_hash":  false,
+        "node":  "Google Calendar - Crear evento",
+        "node_type":  "n8n-nodes-base.googleCalendar",
+        "credential_types":  [
+                                 "googleCalendarOAuth2Api"
+                             ],
+        "providers":  [
+                          "google"
+                      ],
+        "required_secret_or_reference":  [
+                                             "n8n credential type: googleCalendarOAuth2Api"
+                                         ],
+        "environment_variables":  {
+
+                                  },
+        "http_host":  null,
+        "internal_dependencies":  [
+
+                                  ],
+        "external_dependency":  null,
+        "parameter_fields":  [
+                                 "calendar",
+                                 "conferenceData",
+                                 "description",
+                                 "end",
+                                 "location",
+                                 "operation",
+                                 "start",
+                                 "summary"
+                             ]
+    },
+    {
+        "automation":  "email-assistant",
+        "copy_workflow":  "automations/email-assistant/workflow.json",
+        "source_workflow":  "workflows/01-email-manager.json",
+        "source_copy_same_hash":  false,
+        "node":  "Google Calendar - Buscar eventos",
+        "node_type":  "n8n-nodes-base.googleCalendar",
+        "credential_types":  [
+                                 "googleCalendarOAuth2Api"
+                             ],
+        "providers":  [
+                          "google"
+                      ],
+        "required_secret_or_reference":  [
+                                             "n8n credential type: googleCalendarOAuth2Api"
+                                         ],
+        "environment_variables":  {
+
+                                  },
+        "http_host":  null,
+        "internal_dependencies":  [
+
+                                  ],
+        "external_dependency":  null,
+        "parameter_fields":  [
+                                 "calendar",
+                                 "operation",
+                                 "options",
+                                 "searchString"
+                             ]
+    },
+    {
+        "automation":  "email-assistant",
+        "copy_workflow":  "automations/email-assistant/workflow.json",
+        "source_workflow":  "workflows/01-email-manager.json",
+        "source_copy_same_hash":  false,
+        "node":  "Procesar actualizar evento",
+        "node_type":  "n8n-nodes-base.code",
+        "credential_types":  [
+
+                             ],
+        "providers":  [
+
+                      ],
+        "required_secret_or_reference":  [
+                                             "environment variable: TZ"
+                                         ],
+        "environment_variables":  "TZ",
+        "http_host":  null,
+        "internal_dependencies":  [
+                                      "playwright"
+                                  ],
+        "external_dependency":  null,
+        "parameter_fields":  "jsCode"
+    },
+    {
+        "automation":  "email-assistant",
+        "copy_workflow":  "automations/email-assistant/workflow.json",
+        "source_workflow":  "workflows/01-email-manager.json",
+        "source_copy_same_hash":  false,
+        "node":  "Google Calendar - Actualizar evento",
+        "node_type":  "n8n-nodes-base.googleCalendar",
+        "credential_types":  [
+                                 "googleCalendarOAuth2Api"
+                             ],
+        "providers":  [
+                          "google"
+                      ],
+        "required_secret_or_reference":  [
+                                             "n8n credential type: googleCalendarOAuth2Api"
+                                         ],
+        "environment_variables":  {
+
+                                  },
+        "http_host":  null,
+        "internal_dependencies":  [
+
+                                  ],
+        "external_dependency":  null,
+        "parameter_fields":  [
+                                 "calendar",
+                                 "description",
+                                 "end",
+                                 "eventId",
+                                 "location",
+                                 "operation",
+                                 "start",
+                                 "summary"
+                             ]
+    },
+    {
+        "automation":  "email-assistant",
+        "copy_workflow":  "automations/email-assistant/workflow.json",
+        "source_workflow":  "workflows/01-email-manager.json",
+        "source_copy_same_hash":  false,
+        "node":  "Google Calendar - Buscar para cancelar",
+        "node_type":  "n8n-nodes-base.googleCalendar",
+        "credential_types":  [
+                                 "googleCalendarOAuth2Api"
+                             ],
+        "providers":  [
+                          "google"
+                      ],
+        "required_secret_or_reference":  [
+                                             "n8n credential type: googleCalendarOAuth2Api"
+                                         ],
+        "environment_variables":  {
+
+                                  },
+        "http_host":  null,
+        "internal_dependencies":  [
+
+                                  ],
+        "external_dependency":  null,
+        "parameter_fields":  [
+                                 "calendar",
+                                 "operation",
+                                 "options",
+                                 "searchString"
+                             ]
+    },
+    {
+        "automation":  "email-assistant",
+        "copy_workflow":  "automations/email-assistant/workflow.json",
+        "source_workflow":  "workflows/01-email-manager.json",
+        "source_copy_same_hash":  false,
+        "node":  "Google Calendar - Cancelar evento",
+        "node_type":  "n8n-nodes-base.googleCalendar",
+        "credential_types":  [
+                                 "googleCalendarOAuth2Api"
+                             ],
+        "providers":  [
+                          "google"
+                      ],
+        "required_secret_or_reference":  [
+                                             "n8n credential type: googleCalendarOAuth2Api"
+                                         ],
+        "environment_variables":  {
+
+                                  },
+        "http_host":  null,
+        "internal_dependencies":  [
+
+                                  ],
+        "external_dependency":  null,
+        "parameter_fields":  [
+                                 "calendar",
+                                 "eventId",
+                                 "operation"
+                             ]
+    },
+    {
+        "automation":  "laboral",
+        "copy_workflow":  "automations/laboral/workflow.json",
+        "source_workflow":  "workflows/02-laboral.json",
+        "source_copy_same_hash":  true,
+        "node":  "Cada maÃ±ana - Playwright",
+        "node_type":  "n8n-nodes-base.cron",
+        "credential_types":  [
+
+                             ],
+        "providers":  [
+
+                      ],
+        "required_secret_or_reference":  [
+
+                                         ],
+        "environment_variables":  {
+
+                                  },
+        "http_host":  null,
+        "internal_dependencies":  [
+                                      "playwright"
+                                  ],
+        "external_dependency":  null,
+        "parameter_fields":  "triggerTimes"
+    },
+    {
+        "automation":  "laboral",
+        "copy_workflow":  "automations/laboral/workflow.json",
+        "source_workflow":  "workflows/02-laboral.json",
+        "source_copy_same_hash":  true,
+        "node":  "Webhook - Playwright Jobs",
+        "node_type":  "n8n-nodes-base.webhook",
+        "credential_types":  [
+
+                             ],
+        "providers":  [
+
+                      ],
+        "required_secret_or_reference":  [
+
+                                         ],
+        "environment_variables":  {
+
+                                  },
+        "http_host":  null,
+        "internal_dependencies":  [
+                                      "playwright"
+                                  ],
+        "external_dependency":  null,
+        "parameter_fields":  [
+                                 "httpMethod",
+                                 "options",
+                                 "path",
+                                 "responseMode"
+                             ]
+    },
+    {
+        "automation":  "laboral",
+        "copy_workflow":  "automations/laboral/workflow.json",
+        "source_workflow":  "workflows/02-laboral.json",
+        "source_copy_same_hash":  true,
+        "node":  "Preparar solicitudes Playwright",
+        "node_type":  "n8n-nodes-base.code",
+        "credential_types":  [
+
+                             ],
+        "providers":  [
+
+                      ],
+        "required_secret_or_reference":  [
+                                             "environment variable: PLAYWRIGHT_BASE_URL"
+                                         ],
+        "environment_variables":  "PLAYWRIGHT_BASE_URL",
+        "http_host":  null,
+        "internal_dependencies":  [
+                                      "playwright"
+                                  ],
+        "external_dependency":  null,
+        "parameter_fields":  "jsCode"
+    },
+    {
+        "automation":  "laboral",
+        "copy_workflow":  "automations/laboral/workflow.json",
+        "source_workflow":  "workflows/02-laboral.json",
+        "source_copy_same_hash":  true,
+        "node":  "HTTP - Ejecutar scraper Playwright",
+        "node_type":  "n8n-nodes-base.httpRequest",
+        "credential_types":  [
+
+                             ],
+        "providers":  [
+
+                      ],
+        "required_secret_or_reference":  [
+
+                                         ],
+        "environment_variables":  {
+
+                                  },
+        "http_host":  null,
+        "internal_dependencies":  [
+                                      "playwright"
+                                  ],
+        "external_dependency":  null,
+        "parameter_fields":  [
+                                 "method",
+                                 "options",
+                                 "url"
+                             ]
+    },
+    {
+        "automation":  "laboral",
+        "copy_workflow":  "automations/laboral/workflow.json",
+        "source_workflow":  "workflows/02-laboral.json",
+        "source_copy_same_hash":  true,
+        "node":  "Evitar duplicados PostgreSQL",
+        "node_type":  "n8n-nodes-base.postgres",
+        "credential_types":  [
+                                 "postgres"
+                             ],
+        "providers":  [
+                          "postgresql"
+                      ],
+        "required_secret_or_reference":  [
+                                             "n8n credential type: postgres"
+                                         ],
+        "environment_variables":  {
+
+                                  },
+        "http_host":  null,
+        "internal_dependencies":  [
+                                      "postgresql"
+                                  ],
+        "external_dependency":  null,
+        "parameter_fields":  [
+                                 "operation",
+                                 "options",
+                                 "query"
+                             ]
+    },
+    {
+        "automation":  "laboral",
+        "copy_workflow":  "automations/laboral/workflow.json",
+        "source_workflow":  "workflows/02-laboral.json",
+        "source_copy_same_hash":  true,
+        "node":  "Gemini - Resumir oferta",
+        "node_type":  "n8n-nodes-base.httpRequest",
+        "credential_types":  [
+
+                             ],
+        "providers":  [
+                          "gemini"
+                      ],
+        "required_secret_or_reference":  [
+                                             "environment variable: GEMINI_API_KEY",
+                                             "environment variable: GEMINI_MODEL"
+                                         ],
+        "environment_variables":  [
+                                      "GEMINI_API_KEY",
+                                      "GEMINI_MODEL"
+                                  ],
+        "http_host":  "generativelanguage.googleapis.com",
+        "internal_dependencies":  [
+
+                                  ],
+        "external_dependency":  "generativelanguage.googleapis.com",
+        "parameter_fields":  [
+                                 "body",
+                                 "contentType",
+                                 "headerParameters",
+                                 "method",
+                                 "options",
+                                 "rawContentType",
+                                 "sendBody",
+                                 "sendHeaders",
+                                 "url"
+                             ]
+    },
+    {
+        "automation":  "laboral",
+        "copy_workflow":  "automations/laboral/workflow.json",
+        "source_workflow":  "workflows/02-laboral.json",
+        "source_copy_same_hash":  true,
+        "node":  "Telegram - Enviar oferta",
+        "node_type":  "n8n-nodes-base.httpRequest",
+        "credential_types":  [
+
+                             ],
+        "providers":  [
+                          "telegram"
+                      ],
+        "required_secret_or_reference":  [
+                                             "environment variable: TELEGRAM_BOT_TOKEN",
+                                             "environment variable: TELEGRAM_CHAT_ID"
+                                         ],
+        "environment_variables":  [
+                                      "TELEGRAM_BOT_TOKEN",
+                                      "TELEGRAM_CHAT_ID"
+                                  ],
+        "http_host":  "api.telegram.org",
+        "internal_dependencies":  [
+
+                                  ],
+        "external_dependency":  "api.telegram.org",
+        "parameter_fields":  [
+                                 "body",
+                                 "contentType",
+                                 "headerParameters",
+                                 "method",
+                                 "options",
+                                 "rawContentType",
+                                 "sendBody",
+                                 "sendHeaders",
+                                 "url"
+                             ]
+    },
+    {
+        "automation":  "laboral",
+        "copy_workflow":  "automations/laboral/workflow.json",
+        "source_workflow":  "workflows/02-laboral.json",
+        "source_copy_same_hash":  true,
+        "node":  "Telegram - Sin ofertas",
+        "node_type":  "n8n-nodes-base.httpRequest",
+        "credential_types":  [
+
+                             ],
+        "providers":  [
+                          "telegram"
+                      ],
+        "required_secret_or_reference":  [
+                                             "environment variable: TELEGRAM_BOT_TOKEN",
+                                             "environment variable: TELEGRAM_CHAT_ID"
+                                         ],
+        "environment_variables":  [
+                                      "TELEGRAM_BOT_TOKEN",
+                                      "TELEGRAM_CHAT_ID"
+                                  ],
+        "http_host":  "api.telegram.org",
+        "internal_dependencies":  [
+
+                                  ],
+        "external_dependency":  "api.telegram.org",
+        "parameter_fields":  [
+                                 "body",
+                                 "contentType",
+                                 "headerParameters",
+                                 "method",
+                                 "options",
+                                 "rawContentType",
+                                 "sendBody",
+                                 "sendHeaders",
+                                 "url"
+                             ]
+    },
+    {
+        "automation":  "laboral",
+        "copy_workflow":  "automations/laboral/workflow.json",
+        "source_workflow":  "workflows/02-laboral.json",
+        "source_copy_same_hash":  true,
+        "node":  "Responder webhook Playwright",
+        "node_type":  "n8n-nodes-base.respondToWebhook",
+        "credential_types":  [
+
+                             ],
+        "providers":  [
+
+                      ],
+        "required_secret_or_reference":  [
+
+                                         ],
+        "environment_variables":  {
+
+                                  },
+        "http_host":  null,
+        "internal_dependencies":  [
+                                      "playwright"
+                                  ],
+        "external_dependency":  null,
+        "parameter_fields":  [
+                                 "options",
+                                 "respondWith",
+                                 "responseBody"
+                             ]
+    },
+    {
+        "automation":  "news",
+        "copy_workflow":  "automations/news/workflow.json",
+        "source_workflow":  "workflows/03-news.json",
+        "source_copy_same_hash":  true,
+        "node":  "Eliminar duplicados",
+        "node_type":  "n8n-nodes-base.postgres",
+        "credential_types":  [
+                                 "postgres"
+                             ],
+        "providers":  [
+                          "postgresql"
+                      ],
+        "required_secret_or_reference":  [
+                                             "n8n credential type: postgres"
+                                         ],
+        "environment_variables":  {
+
+                                  },
+        "http_host":  null,
+        "internal_dependencies":  [
+                                      "postgresql"
+                                  ],
+        "external_dependency":  null,
+        "parameter_fields":  [
+                                 "operation",
+                                 "options",
+                                 "query"
+                             ]
+    },
+    {
+        "automation":  "news",
+        "copy_workflow":  "automations/news/workflow.json",
+        "source_workflow":  "workflows/03-news.json",
+        "source_copy_same_hash":  true,
+        "node":  "Gemini - Resumir noticia",
+        "node_type":  "n8n-nodes-base.httpRequest",
+        "credential_types":  [
+
+                             ],
+        "providers":  [
+                          "gemini"
+                      ],
+        "required_secret_or_reference":  [
+                                             "environment variable: GEMINI_API_KEY",
+                                             "environment variable: GEMINI_MODEL"
+                                         ],
+        "environment_variables":  [
+                                      "GEMINI_API_KEY",
+                                      "GEMINI_MODEL"
+                                  ],
+        "http_host":  "generativelanguage.googleapis.com",
+        "internal_dependencies":  [
+
+                                  ],
+        "external_dependency":  "generativelanguage.googleapis.com",
+        "parameter_fields":  [
+                                 "body",
+                                 "contentType",
+                                 "headerParameters",
+                                 "method",
+                                 "options",
+                                 "rawContentType",
+                                 "sendBody",
+                                 "sendHeaders",
+                                 "url"
+                             ]
+    },
+    {
+        "automation":  "news",
+        "copy_workflow":  "automations/news/workflow.json",
+        "source_workflow":  "workflows/03-news.json",
+        "source_copy_same_hash":  true,
+        "node":  "WhatsApp - Noticias",
+        "node_type":  "n8n-nodes-base.httpRequest",
+        "credential_types":  [
+
+                             ],
+        "providers":  [
+                          "whatsapp_cloud"
+                      ],
+        "required_secret_or_reference":  [
+                                             "environment variable: WHATSAPP_ACCESS_TOKEN",
+                                             "environment variable: WHATSAPP_API_VERSION",
+                                             "environment variable: WHATSAPP_PHONE_NUMBER_ID",
+                                             "environment variable: WHATSAPP_RECIPIENT"
+                                         ],
+        "environment_variables":  [
+                                      "WHATSAPP_ACCESS_TOKEN",
+                                      "WHATSAPP_API_VERSION",
+                                      "WHATSAPP_PHONE_NUMBER_ID",
+                                      "WHATSAPP_RECIPIENT"
+                                  ],
+        "http_host":  "graph.facebook.com",
+        "internal_dependencies":  [
+
+                                  ],
+        "external_dependency":  "graph.facebook.com",
+        "parameter_fields":  [
+                                 "body",
+                                 "contentType",
+                                 "headerParameters",
+                                 "method",
+                                 "options",
+                                 "rawContentType",
+                                 "sendBody",
+                                 "sendHeaders",
+                                 "url"
+                             ]
+    },
+    {
+        "automation":  "personal-brand",
+        "copy_workflow":  "automations/personal-brand/workflow.json",
+        "source_workflow":  "workflows/04-personal-brand.json",
+        "source_copy_same_hash":  true,
+        "node":  "Evitar duplicados",
+        "node_type":  "n8n-nodes-base.postgres",
+        "credential_types":  [
+                                 "postgres"
+                             ],
+        "providers":  [
+                          "postgresql"
+                      ],
+        "required_secret_or_reference":  [
+                                             "n8n credential type: postgres"
+                                         ],
+        "environment_variables":  {
+
+                                  },
+        "http_host":  null,
+        "internal_dependencies":  [
+                                      "postgresql"
+                                  ],
+        "external_dependency":  null,
+        "parameter_fields":  [
+                                 "operation",
+                                 "options",
+                                 "query"
+                             ]
+    },
+    {
+        "automation":  "personal-brand",
+        "copy_workflow":  "automations/personal-brand/workflow.json",
+        "source_workflow":  "workflows/04-personal-brand.json",
+        "source_copy_same_hash":  true,
+        "node":  "Gemini - Borrador LinkedIn",
+        "node_type":  "n8n-nodes-base.httpRequest",
+        "credential_types":  [
+                                 "httpHeaderAuth"
+                             ],
+        "providers":  [
+                          "gemini",
+                          "header_auth"
+                      ],
+        "required_secret_or_reference":  [
+                                             "n8n credential type: httpHeaderAuth"
+                                         ],
+        "environment_variables":  {
+
+                                  },
+        "http_host":  "generativelanguage.googleapis.com",
+        "internal_dependencies":  [
+
+                                  ],
+        "external_dependency":  "generativelanguage.googleapis.com",
+        "parameter_fields":  [
+                                 "authentication",
+                                 "body",
+                                 "contentType",
+                                 "genericAuthType",
+                                 "headerParameters",
+                                 "method",
+                                 "options",
+                                 "rawContentType",
+                                 "sendBody",
+                                 "sendHeaders",
+                                 "url"
+                             ]
+    },
+    {
+        "automation":  "personal-brand",
+        "copy_workflow":  "automations/personal-brand/workflow.json",
+        "source_workflow":  "workflows/04-personal-brand.json",
+        "source_copy_same_hash":  true,
+        "node":  "Google Docs - Crear borrador",
+        "node_type":  "n8n-nodes-base.googleDocs",
+        "credential_types":  [
+                                 "googleDocsOAuth2Api"
+                             ],
+        "providers":  [
+                          "google"
+                      ],
+        "required_secret_or_reference":  [
+                                             "n8n credential type: googleDocsOAuth2Api"
+                                         ],
+        "environment_variables":  {
+
+                                  },
+        "http_host":  null,
+        "internal_dependencies":  [
+
+                                  ],
+        "external_dependency":  null,
+        "parameter_fields":  [
+                                 "folderId",
+                                 "title"
+                             ]
+    },
+    {
+        "automation":  "personal-brand",
+        "copy_workflow":  "automations/personal-brand/workflow.json",
+        "source_workflow":  "workflows/04-personal-brand.json",
+        "source_copy_same_hash":  true,
+        "node":  "Google Docs - Escribir borrador",
+        "node_type":  "n8n-nodes-base.googleDocs",
+        "credential_types":  [
+                                 "googleDocsOAuth2Api"
+                             ],
+        "providers":  [
+                          "google"
+                      ],
+        "required_secret_or_reference":  [
+                                             "n8n credential type: googleDocsOAuth2Api"
+                                         ],
+        "environment_variables":  {
+
+                                  },
+        "http_host":  null,
+        "internal_dependencies":  [
+
+                                  ],
+        "external_dependency":  null,
+        "parameter_fields":  [
+                                 "actionsUi",
+                                 "documentURL",
+                                 "operation"
+                             ]
+    },
+    {
+        "automation":  "personal-brand",
+        "copy_workflow":  "automations/personal-brand/workflow.json",
+        "source_workflow":  "workflows/04-personal-brand.json",
+        "source_copy_same_hash":  true,
+        "node":  "Evitar duplicados1",
+        "node_type":  "n8n-nodes-base.postgres",
+        "credential_types":  [
+                                 "postgres"
+                             ],
+        "providers":  [
+                          "postgresql"
+                      ],
+        "required_secret_or_reference":  [
+                                             "n8n credential type: postgres"
+                                         ],
+        "environment_variables":  {
+
+                                  },
+        "http_host":  null,
+        "internal_dependencies":  [
+                                      "postgresql"
+                                  ],
+        "external_dependency":  null,
+        "parameter_fields":  [
+                                 "operation",
+                                 "options",
+                                 "query"
+                             ]
+    },
+    {
+        "automation":  "personal-brand",
+        "copy_workflow":  "automations/personal-brand/workflow.json",
+        "source_workflow":  "workflows/04-personal-brand.json",
+        "source_copy_same_hash":  true,
+        "node":  "Gemini - Borrador LinkedIn1",
+        "node_type":  "n8n-nodes-base.httpRequest",
+        "credential_types":  [
+                                 "httpHeaderAuth"
+                             ],
+        "providers":  [
+                          "gemini",
+                          "header_auth"
+                      ],
+        "required_secret_or_reference":  [
+                                             "n8n credential type: httpHeaderAuth"
+                                         ],
+        "environment_variables":  {
+
+                                  },
+        "http_host":  "generativelanguage.googleapis.com",
+        "internal_dependencies":  [
+
+                                  ],
+        "external_dependency":  "generativelanguage.googleapis.com",
+        "parameter_fields":  [
+                                 "authentication",
+                                 "body",
+                                 "contentType",
+                                 "genericAuthType",
+                                 "headerParameters",
+                                 "method",
+                                 "options",
+                                 "rawContentType",
+                                 "sendBody",
+                                 "sendHeaders",
+                                 "url"
+                             ]
+    },
+    {
+        "automation":  "personal-brand",
+        "copy_workflow":  "automations/personal-brand/workflow.json",
+        "source_workflow":  "workflows/04-personal-brand.json",
+        "source_copy_same_hash":  true,
+        "node":  "Google Docs - Crear borrador1",
+        "node_type":  "n8n-nodes-base.googleDocs",
+        "credential_types":  [
+                                 "googleDocsOAuth2Api"
+                             ],
+        "providers":  [
+                          "google"
+                      ],
+        "required_secret_or_reference":  [
+                                             "n8n credential type: googleDocsOAuth2Api"
+                                         ],
+        "environment_variables":  {
+
+                                  },
+        "http_host":  null,
+        "internal_dependencies":  [
+
+                                  ],
+        "external_dependency":  null,
+        "parameter_fields":  [
+                                 "folderId",
+                                 "title"
+                             ]
+    },
+    {
+        "automation":  "personal-brand",
+        "copy_workflow":  "automations/personal-brand/workflow.json",
+        "source_workflow":  "workflows/04-personal-brand.json",
+        "source_copy_same_hash":  true,
+        "node":  "Google Docs - Escribir borrador1",
+        "node_type":  "n8n-nodes-base.googleDocs",
+        "credential_types":  [
+                                 "googleDocsOAuth2Api"
+                             ],
+        "providers":  [
+                          "google"
+                      ],
+        "required_secret_or_reference":  [
+                                             "n8n credential type: googleDocsOAuth2Api"
+                                         ],
+        "environment_variables":  {
+
+                                  },
+        "http_host":  null,
+        "internal_dependencies":  [
+
+                                  ],
+        "external_dependency":  null,
+        "parameter_fields":  [
+                                 "actionsUi",
+                                 "documentURL",
+                                 "operation"
+                             ]
+    },
+    {
+        "automation":  "personal-brand",
+        "copy_workflow":  "automations/personal-brand/workflow.json",
+        "source_workflow":  "workflows/04-personal-brand.json",
+        "source_copy_same_hash":  true,
+        "node":  "Evitar duplicados2",
+        "node_type":  "n8n-nodes-base.postgres",
+        "credential_types":  [
+                                 "postgres"
+                             ],
+        "providers":  [
+                          "postgresql"
+                      ],
+        "required_secret_or_reference":  [
+                                             "n8n credential type: postgres"
+                                         ],
+        "environment_variables":  {
+
+                                  },
+        "http_host":  null,
+        "internal_dependencies":  [
+                                      "postgresql"
+                                  ],
+        "external_dependency":  null,
+        "parameter_fields":  [
+                                 "operation",
+                                 "options",
+                                 "query"
+                             ]
+    },
+    {
+        "automation":  "personal-brand",
+        "copy_workflow":  "automations/personal-brand/workflow.json",
+        "source_workflow":  "workflows/04-personal-brand.json",
+        "source_copy_same_hash":  true,
+        "node":  "Gemini - Borrador LinkedIn2",
+        "node_type":  "n8n-nodes-base.httpRequest",
+        "credential_types":  [
+                                 "httpHeaderAuth"
+                             ],
+        "providers":  [
+                          "gemini",
+                          "header_auth"
+                      ],
+        "required_secret_or_reference":  [
+                                             "n8n credential type: httpHeaderAuth"
+                                         ],
+        "environment_variables":  {
+
+                                  },
+        "http_host":  "generativelanguage.googleapis.com",
+        "internal_dependencies":  [
+
+                                  ],
+        "external_dependency":  "generativelanguage.googleapis.com",
+        "parameter_fields":  [
+                                 "authentication",
+                                 "body",
+                                 "contentType",
+                                 "genericAuthType",
+                                 "headerParameters",
+                                 "method",
+                                 "options",
+                                 "rawContentType",
+                                 "sendBody",
+                                 "sendHeaders",
+                                 "url"
+                             ]
+    },
+    {
+        "automation":  "personal-brand",
+        "copy_workflow":  "automations/personal-brand/workflow.json",
+        "source_workflow":  "workflows/04-personal-brand.json",
+        "source_copy_same_hash":  true,
+        "node":  "Google Docs - Crear borrador2",
+        "node_type":  "n8n-nodes-base.googleDocs",
+        "credential_types":  [
+                                 "googleDocsOAuth2Api"
+                             ],
+        "providers":  [
+                          "google"
+                      ],
+        "required_secret_or_reference":  [
+                                             "n8n credential type: googleDocsOAuth2Api"
+                                         ],
+        "environment_variables":  {
+
+                                  },
+        "http_host":  null,
+        "internal_dependencies":  [
+
+                                  ],
+        "external_dependency":  null,
+        "parameter_fields":  [
+                                 "folderId",
+                                 "title"
+                             ]
+    },
+    {
+        "automation":  "personal-brand",
+        "copy_workflow":  "automations/personal-brand/workflow.json",
+        "source_workflow":  "workflows/04-personal-brand.json",
+        "source_copy_same_hash":  true,
+        "node":  "Google Docs - Escribir borrador2",
+        "node_type":  "n8n-nodes-base.googleDocs",
+        "credential_types":  [
+                                 "googleDocsOAuth2Api"
+                             ],
+        "providers":  [
+                          "google"
+                      ],
+        "required_secret_or_reference":  [
+                                             "n8n credential type: googleDocsOAuth2Api"
+                                         ],
+        "environment_variables":  {
+
+                                  },
+        "http_host":  null,
+        "internal_dependencies":  [
+
+                                  ],
+        "external_dependency":  null,
+        "parameter_fields":  [
+                                 "actionsUi",
+                                 "documentURL",
+                                 "operation"
+                             ]
+    },
+    {
+        "automation":  "personal-brand",
+        "copy_workflow":  "automations/personal-brand/workflow.json",
+        "source_workflow":  "workflows/04-personal-brand.json",
+        "source_copy_same_hash":  true,
+        "node":  "Evitar duplicados3",
+        "node_type":  "n8n-nodes-base.postgres",
+        "credential_types":  [
+                                 "postgres"
+                             ],
+        "providers":  [
+                          "postgresql"
+                      ],
+        "required_secret_or_reference":  [
+                                             "n8n credential type: postgres"
+                                         ],
+        "environment_variables":  {
+
+                                  },
+        "http_host":  null,
+        "internal_dependencies":  [
+                                      "postgresql"
+                                  ],
+        "external_dependency":  null,
+        "parameter_fields":  [
+                                 "operation",
+                                 "options",
+                                 "query"
+                             ]
+    },
+    {
+        "automation":  "personal-brand",
+        "copy_workflow":  "automations/personal-brand/workflow.json",
+        "source_workflow":  "workflows/04-personal-brand.json",
+        "source_copy_same_hash":  true,
+        "node":  "Gemini - Borrador LinkedIn3",
+        "node_type":  "n8n-nodes-base.httpRequest",
+        "credential_types":  [
+                                 "httpHeaderAuth"
+                             ],
+        "providers":  [
+                          "gemini",
+                          "header_auth"
+                      ],
+        "required_secret_or_reference":  [
+                                             "n8n credential type: httpHeaderAuth"
+                                         ],
+        "environment_variables":  {
+
+                                  },
+        "http_host":  "generativelanguage.googleapis.com",
+        "internal_dependencies":  [
+
+                                  ],
+        "external_dependency":  "generativelanguage.googleapis.com",
+        "parameter_fields":  [
+                                 "authentication",
+                                 "body",
+                                 "contentType",
+                                 "genericAuthType",
+                                 "headerParameters",
+                                 "method",
+                                 "options",
+                                 "rawContentType",
+                                 "sendBody",
+                                 "sendHeaders",
+                                 "url"
+                             ]
+    },
+    {
+        "automation":  "personal-brand",
+        "copy_workflow":  "automations/personal-brand/workflow.json",
+        "source_workflow":  "workflows/04-personal-brand.json",
+        "source_copy_same_hash":  true,
+        "node":  "Google Docs - Crear borrador3",
+        "node_type":  "n8n-nodes-base.googleDocs",
+        "credential_types":  [
+                                 "googleDocsOAuth2Api"
+                             ],
+        "providers":  [
+                          "google"
+                      ],
+        "required_secret_or_reference":  [
+                                             "n8n credential type: googleDocsOAuth2Api"
+                                         ],
+        "environment_variables":  {
+
+                                  },
+        "http_host":  null,
+        "internal_dependencies":  [
+
+                                  ],
+        "external_dependency":  null,
+        "parameter_fields":  [
+                                 "folderId",
+                                 "title"
+                             ]
+    },
+    {
+        "automation":  "personal-brand",
+        "copy_workflow":  "automations/personal-brand/workflow.json",
+        "source_workflow":  "workflows/04-personal-brand.json",
+        "source_copy_same_hash":  true,
+        "node":  "Google Docs - Escribir borrador3",
+        "node_type":  "n8n-nodes-base.googleDocs",
+        "credential_types":  [
+                                 "googleDocsOAuth2Api"
+                             ],
+        "providers":  [
+                          "google"
+                      ],
+        "required_secret_or_reference":  [
+                                             "n8n credential type: googleDocsOAuth2Api"
+                                         ],
+        "environment_variables":  {
+
+                                  },
+        "http_host":  null,
+        "internal_dependencies":  [
+
+                                  ],
+        "external_dependency":  null,
+        "parameter_fields":  [
+                                 "actionsUi",
+                                 "documentURL",
+                                 "operation"
+                             ]
+    },
+    {
+        "automation":  "personal-brand",
+        "copy_workflow":  "automations/personal-brand/workflow.json",
+        "source_workflow":  "workflows/04-personal-brand.json",
+        "source_copy_same_hash":  true,
+        "node":  "Evitar duplicados4",
+        "node_type":  "n8n-nodes-base.postgres",
+        "credential_types":  [
+                                 "postgres"
+                             ],
+        "providers":  [
+                          "postgresql"
+                      ],
+        "required_secret_or_reference":  [
+                                             "n8n credential type: postgres"
+                                         ],
+        "environment_variables":  {
+
+                                  },
+        "http_host":  null,
+        "internal_dependencies":  [
+                                      "postgresql"
+                                  ],
+        "external_dependency":  null,
+        "parameter_fields":  [
+                                 "operation",
+                                 "options",
+                                 "query"
+                             ]
+    },
+    {
+        "automation":  "personal-brand",
+        "copy_workflow":  "automations/personal-brand/workflow.json",
+        "source_workflow":  "workflows/04-personal-brand.json",
+        "source_copy_same_hash":  true,
+        "node":  "Gemini - Borrador LinkedIn4",
+        "node_type":  "n8n-nodes-base.httpRequest",
+        "credential_types":  [
+                                 "httpHeaderAuth"
+                             ],
+        "providers":  [
+                          "gemini",
+                          "header_auth"
+                      ],
+        "required_secret_or_reference":  [
+                                             "n8n credential type: httpHeaderAuth"
+                                         ],
+        "environment_variables":  {
+
+                                  },
+        "http_host":  "generativelanguage.googleapis.com",
+        "internal_dependencies":  [
+
+                                  ],
+        "external_dependency":  "generativelanguage.googleapis.com",
+        "parameter_fields":  [
+                                 "authentication",
+                                 "body",
+                                 "contentType",
+                                 "genericAuthType",
+                                 "headerParameters",
+                                 "method",
+                                 "options",
+                                 "rawContentType",
+                                 "sendBody",
+                                 "sendHeaders",
+                                 "url"
+                             ]
+    },
+    {
+        "automation":  "personal-brand",
+        "copy_workflow":  "automations/personal-brand/workflow.json",
+        "source_workflow":  "workflows/04-personal-brand.json",
+        "source_copy_same_hash":  true,
+        "node":  "Google Docs - Crear borrador4",
+        "node_type":  "n8n-nodes-base.googleDocs",
+        "credential_types":  [
+                                 "googleDocsOAuth2Api"
+                             ],
+        "providers":  [
+                          "google"
+                      ],
+        "required_secret_or_reference":  [
+                                             "n8n credential type: googleDocsOAuth2Api"
+                                         ],
+        "environment_variables":  {
+
+                                  },
+        "http_host":  null,
+        "internal_dependencies":  [
+
+                                  ],
+        "external_dependency":  null,
+        "parameter_fields":  [
+                                 "folderId",
+                                 "title"
+                             ]
+    },
+    {
+        "automation":  "personal-brand",
+        "copy_workflow":  "automations/personal-brand/workflow.json",
+        "source_workflow":  "workflows/04-personal-brand.json",
+        "source_copy_same_hash":  true,
+        "node":  "Google Docs - Escribir borrador4",
+        "node_type":  "n8n-nodes-base.googleDocs",
+        "credential_types":  [
+                                 "googleDocsOAuth2Api"
+                             ],
+        "providers":  [
+                          "google"
+                      ],
+        "required_secret_or_reference":  [
+                                             "n8n credential type: googleDocsOAuth2Api"
+                                         ],
+        "environment_variables":  {
+
+                                  },
+        "http_host":  null,
+        "internal_dependencies":  [
+
+                                  ],
+        "external_dependency":  null,
+        "parameter_fields":  [
+                                 "actionsUi",
+                                 "documentURL",
+                                 "operation"
+                             ]
+    },
+    {
+        "automation":  "playwright-jobs",
+        "copy_workflow":  "automations/playwright-jobs/workflow.json",
+        "source_workflow":  "workflows/05-playwright-jobs.json",
+        "source_copy_same_hash":  true,
+        "node":  "Cada maÃ±ana - Playwright",
+        "node_type":  "n8n-nodes-base.cron",
+        "credential_types":  [
+
+                             ],
+        "providers":  [
+
+                      ],
+        "required_secret_or_reference":  [
+
+                                         ],
+        "environment_variables":  {
+
+                                  },
+        "http_host":  null,
+        "internal_dependencies":  [
+                                      "playwright"
+                                  ],
+        "external_dependency":  null,
+        "parameter_fields":  "triggerTimes"
+    },
+    {
+        "automation":  "playwright-jobs",
+        "copy_workflow":  "automations/playwright-jobs/workflow.json",
+        "source_workflow":  "workflows/05-playwright-jobs.json",
+        "source_copy_same_hash":  true,
+        "node":  "Webhook - Playwright Jobs",
+        "node_type":  "n8n-nodes-base.webhook",
+        "credential_types":  [
+
+                             ],
+        "providers":  [
+
+                      ],
+        "required_secret_or_reference":  [
+
+                                         ],
+        "environment_variables":  {
+
+                                  },
+        "http_host":  null,
+        "internal_dependencies":  [
+                                      "playwright"
+                                  ],
+        "external_dependency":  null,
+        "parameter_fields":  [
+                                 "httpMethod",
+                                 "options",
+                                 "path",
+                                 "responseMode"
+                             ]
+    },
+    {
+        "automation":  "playwright-jobs",
+        "copy_workflow":  "automations/playwright-jobs/workflow.json",
+        "source_workflow":  "workflows/05-playwright-jobs.json",
+        "source_copy_same_hash":  true,
+        "node":  "Preparar solicitudes Playwright",
+        "node_type":  "n8n-nodes-base.code",
+        "credential_types":  [
+
+                             ],
+        "providers":  [
+
+                      ],
+        "required_secret_or_reference":  [
+                                             "environment variable: PLAYWRIGHT_BASE_URL"
+                                         ],
+        "environment_variables":  "PLAYWRIGHT_BASE_URL",
+        "http_host":  null,
+        "internal_dependencies":  [
+                                      "playwright"
+                                  ],
+        "external_dependency":  null,
+        "parameter_fields":  "jsCode"
+    },
+    {
+        "automation":  "playwright-jobs",
+        "copy_workflow":  "automations/playwright-jobs/workflow.json",
+        "source_workflow":  "workflows/05-playwright-jobs.json",
+        "source_copy_same_hash":  true,
+        "node":  "HTTP - Ejecutar scraper Playwright",
+        "node_type":  "n8n-nodes-base.httpRequest",
+        "credential_types":  [
+
+                             ],
+        "providers":  [
+
+                      ],
+        "required_secret_or_reference":  [
+
+                                         ],
+        "environment_variables":  {
+
+                                  },
+        "http_host":  null,
+        "internal_dependencies":  [
+                                      "playwright"
+                                  ],
+        "external_dependency":  null,
+        "parameter_fields":  [
+                                 "method",
+                                 "options",
+                                 "url"
+                             ]
+    },
+    {
+        "automation":  "playwright-jobs",
+        "copy_workflow":  "automations/playwright-jobs/workflow.json",
+        "source_workflow":  "workflows/05-playwright-jobs.json",
+        "source_copy_same_hash":  true,
+        "node":  "HistÃ³rico PostgreSQL - SÃ³lo nuevos",
+        "node_type":  "n8n-nodes-base.postgres",
+        "credential_types":  [
+                                 "postgres"
+                             ],
+        "providers":  [
+                          "postgresql"
+                      ],
+        "required_secret_or_reference":  [
+                                             "n8n credential type: postgres"
+                                         ],
+        "environment_variables":  {
+
+                                  },
+        "http_host":  null,
+        "internal_dependencies":  [
+                                      "postgresql"
+                                  ],
+        "external_dependency":  null,
+        "parameter_fields":  [
+                                 "operation",
+                                 "options",
+                                 "query"
+                             ]
+    }
+]

@@ -1,0 +1,13 @@
+{
+  "responseMimeType": "application/json",
+  "responseJsonSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": ["titulo", "resumen", "relevancia", "prioridad", "enlace"],
+    "properties": {
+      "titulo": {"type": "string"}, "resumen": {"type": "string"}, "relevancia": {"type": "string"},
+      "prioridad": {"type": "string", "enum": ["alta", "media", "baja"]}, "enlace": {"type": "string"}
+    }
+  },
+  "systemInstruction": "Responde sólo con JSON válido conforme al esquema. Resume hechos verificables sin inventar datos, conserva el enlace original y no añadas Markdown, saludos ni texto fuera del JSON."
+}

@@ -1,0 +1,55 @@
+id: personal-brand
+name: Personal Brand Manager
+description: Automated content generation and scheduling for personal branding
+version: 1.0.0
+status: disabled
+category: marketing
+icon: user
+
+requirements:
+  - provider: postgresql
+    type: connection
+  - provider: header_auth
+    type: structured
+  - provider: google
+    type: oauth2
+    scopes:
+      - https://www.googleapis.com/auth/documents
+      - https://www.googleapis.com/auth/drive.file
+
+dependencies:
+  - postgresql
+
+n8n:
+  workflow_file: workflow.json
+  credential_mapping:
+    postgres: postgresql
+    httpHeaderAuth: header_auth
+    googleDocsOAuth2Api: google
+
+setup:
+  - description: "Configure PostgreSQL connection (credential name MUST be 'Postgres account')"
+  - description: "Conecte Header Auth para Gemini desde Accounts; no introduzca una clave Gemini en el manifest."
+  - description: "Configure Google Docs OAuth2 credential named 'Google Docs account'"
+  - description: "Set GEMINI_MODEL environment variable (e.g., gemini-2.5-flash)"
+  - description: "Note: Workflow has 5 hardcoded RSS sources and 5 hardcoded Google Docs folder IDs"
+
+teardown:
+  - description: "Deactivate workflow in n8n"
+  - description: "Remove automation credentials mapping"
+  - description: "Delete automation metadata"
+
+metadata:
+  auto_enable: false
+  source_workflow: "04-personal-brand.json"
+  actual_ai_provider: "gemini_via_header_auth"
+  actual_notification: "google_docs"
+  env_vars_required:
+    - GEMINI_MODEL
+  known_issues:
+    - "Uses 'Postgres account' credential name (not standard 'Postgres assistant')"
+    - "Uses HTTP Header Auth for Gemini (credential: 'Header Auth account')"
+    - "5x duplicated workflow branches - maintenance burden"
+    - "Hardcoded Google Docs folder IDs"
+    - "Hardcoded RSS feed queries"
+    - "No external notifications (only Google Docs output)"

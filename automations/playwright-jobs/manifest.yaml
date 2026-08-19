@@ -1,0 +1,40 @@
+id: playwright-jobs
+name: Playwright Job Scraper
+description: Browser-based job scraping using Playwright with AI filtering
+version: 1.0.0
+status: disabled
+category: productivity
+icon: browser
+
+requirements:
+  - provider: postgresql
+    type: connection
+
+dependencies:
+  - postgresql
+  - playwright
+
+n8n:
+  workflow_file: workflow.json
+  credential_mapping:
+    postgres: postgresql
+    # Note: Workflow does NOT use OpenRouter, Telegram, or any AI provider
+    # Only PostgreSQL credential is required
+
+setup:
+  - description: "Configure PostgreSQL connection for job storage (credential name: 'Postgres assistant')"
+  - description: "Ensure Playwright service is running (PLAYWRIGHT_BASE_URL)"
+  - description: "Note: This workflow does NOT use AI filtering or Telegram notifications"
+
+teardown:
+  - description: "Deactivate workflow in n8n"
+  - description: "Remove automation credentials mapping"
+  - description: "Delete automation metadata"
+
+metadata:
+  auto_enable: false
+  source_workflow: "05-playwright-jobs.json"
+  actual_ai_provider: "none"
+  actual_notification: "none"
+  env_vars_required:
+    - PLAYWRIGHT_BASE_URL

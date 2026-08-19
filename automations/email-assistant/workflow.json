@@ -1,0 +1,605 @@
+{
+  "name": "AI Email Secretary",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "gmail-trigger",
+      "name": "Gmail Trigger",
+      "type": "n8n-nodes-base.gmailTrigger",
+      "typeVersion": 1,
+      "position": [-1040, 120],
+      "credentials": {"gmailOAuth2": {"id": "", "name": "Google OAuth2"}},
+      "notes": "Dispara workflow cuando Gmail notifica nuevo correo. Los mensajes reales se recuperan desde Gmail node."
+    },
+    {
+      "parameters": {
+        "operation": "list",
+        "returnAll": true,
+        "options": {
+          "q": "is:unread is:inbox -from:me",
+          "format": "full"
+        }
+      },
+      "id": "gmail-list-messages",
+      "name": "Gmail - Listar mensajes",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 1.2,
+      "position": [-800, 120],
+      "credentials": {"gmailOAuth2": {"id": "", "name": "Google OAuth2"}},
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {"httpMethod": "POST", "path": "assistant/email", "responseMode": "onReceived", "options": {}},
+      "id": "email-webhook",
+      "name": "Webhook - Email Intake",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [-1040, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Use Gmail message ID as the primary identifier\nconst input = $json;\nconst id = input.id || input.messageId;\n\nif (!id) {\n  console.log('[SECRETARY] ERROR: No se pudo obtener el Gmail message ID');\n  return [];\n}\n\n// Extract email data from payload if available\nconst payload = input.payload || {};\nconst headers = payload.headers ?? [];\nconst header = (name) => headers.find((h) => h.name?.toLowerCase() === name)?.value ?? '';\n\nconst subject = input.subject ?? header('subject') ?? '(sin asunto)';\nconst from = header('from') ?? header('From') ?? '(desconocido)';\nconst text = input.snippet ?? payload.textPlain ?? payload.body ?? '';\n\nreturn [{ json: {\n  ...input,\n  email_id: id,\n  item_key: `email:${id}`,\n  subject,\n  from,\n  text,\n  labelIds: input.labelIds ?? [],\n  payload,\n  received_at: new Date().toISOString()\n} }];"
+      },
+      "id": "prepare-email",
+      "name": "Preparar correo",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-560, 120]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {"caseSensitive": true, "leftValue": "", "typeValidation": "strict"},
+          "conditions": [{"leftValue": "={{ ($json.labelIds || ['INBOX']).includes('INBOX') && !($json.labelIds || []).some(l => ['SPAM','CATEGORY_PROMOTIONS','CATEGORY_SOCIAL'].includes(l)) }}", "operator": {"type": "boolean", "operation": "true", "singleValue": true}}],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "filter-important",
+      "name": "Excluir spam, promociones y social",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [-560, 200]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "WITH inserted AS (INSERT INTO assistant_processed_items (item_key, source, title, payload) VALUES ('{{$json.item_key.replace(/'/g, \"''\")}}', 'email', '{{$json.subject.replace(/'/g, \"''\")}}', '{}'::jsonb) ON CONFLICT (item_key) DO NOTHING RETURNING item_key) SELECT '{{$json.item_key.replace(/'/g, \"''\")}}' AS item_key, CASE WHEN EXISTS (SELECT 1 FROM inserted) THEN 'new' ELSE 'duplicate' END AS status;",
+        "options": {}
+      },
+      "id": "dedupe-email",
+      "name": "Evitar duplicados",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [-320, 200],
+      "credentials": {"postgres": {"id": "", "name": "Postgres assistant"}},
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const email = $('Preparar correo').item.json;\nconst status = $json.status;\n\nif (status === 'duplicate') {\n  console.log('[SECRETARY] Duplicado:', email.subject, '| ID:', email.item_key);\n  return [];\n}\n\nif (status === 'new') {\n  console.log('[SECRETARY] Nuevo:', email.subject, '| De:', email.from, '| ID:', email.item_key);\n  return [{ json: { ...email, ...$json } }];\n}\n\nconsole.log('[SECRETARY] ERROR dedup - deteniendo email por seguridad:', email.subject, '| Status:', status);\nreturn [];"
+      },
+      "id": "check-dedup",
+      "name": "Verificar duplicado",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-160, 200]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://generativelanguage.googleapis.com/v1beta/models/{{$env.GEMINI_MODEL}}:generateContent?key={{$env.GEMINI_API_KEY}}",
+        "sendHeaders": true,
+        "headerParameters": {"parameters": [{"name": "Content-Type", "value": "application/json"}]},
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={\"systemInstruction\":{\"parts\":[{\"text\":\"Eres un asistente de correo electrónico inteligente (email secretary) que decide qué hacer con cada email. Analiza el contenido, entiende la intención y determina la acción más adecuada. Responde exclusivamente JSON válido sin Markdown ni texto adicional.\\n\\nCATEGORÍAS VÁLIDAS: agenda, tarea, importante, cuenta, seguridad, personal, laboral, ignorar\\n\\nACCIONES VÁLIDAS:\\n- crear_evento: email contiene una cita, reunión, entrevista, clase o evento programado con fecha/hora clara\\n- actualizar_evento: email modifica una cita existente (nueva fecha/hora/ubicación)\\n- cancelar_evento: email cancela una cita existente\\n- crear_tarea: email pide realizar una acción con plazo (enviar documento, completar formulario, etc.)\\n- notificar: email importante pero sin acción automática (notificaciones, confirmaciones, alertas)\\n- procesar: email de cuenta/seguridad que requiere intervención manual (códigos de verificación, links de activación)\\n- ignorar: spam, newsletters genéricas, publicidad, correos irrelevantes\\n\\nPRIORIDADES VÁLIDAS: alta, media, baja\\n\\nREGLAS DE ORO:\\n1. Si el email contiene una fecha/hora clara de un evento futuro → crear_evento\\n2. Si el email pide que hagas algo con un plazo → crear_tarea\\n3. Si el email es una alerta de seguridad, cuenta, o información crítica → notificar o procesar\\n4. Si el email simplemente informa sin requerir acción → ignorar ( newsletters genéricas, promociones, noticias sin acción)\\n5. Si hay duda sobre si hay una fecha real → ignorar, no inventes\\n6. Si el email requiere que tú (el usuario) hagas algo manualmente → notificar o procesar\\n7. Si el email contiene un enlace de verificación o código de seguridad → procesar\\n\\nIMPORTANTE: No expongas contraseñas, tokens de autenticación ni credenciales sensibles en las salidas.\\n\\nDevuelve siempre todas las claves solicitadas. Usa null cuando la información no esté disponible.\"}]}},\"contents\":[{\"parts\":[{\"text\":\"Fecha actual: {{$now.setZone($env.TZ).toFormat('yyyy-LL-dd')}}\\nRemitente: {{$('Preparar correo').item.json.from}}\\nAsunto: {{$('Preparar correo').item.json.subject}}\\nContenido: {{$('Preparar correo').item.json.text}}\"}]}],\"generationConfig\":{\"responseMimeType\":\"application/json\",\"responseSchema\":{\"type\":\"OBJECT\",\"properties\":{\"categoria\":{\"type\":\"STRING\",\"enum\":[\"agenda\",\"tarea\",\"importante\",\"cuenta\",\"seguridad\",\"personal\",\"laboral\",\"ignorar\"]},\"accion\":{\"type\":\"STRING\",\"enum\":[\"crear_evento\",\"actualizar_evento\",\"cancelar_evento\",\"crear_tarea\",\"notificar\",\"procesar\",\"ignorar\"]},\"prioridad\":{\"type\":\"STRING\",\"enum\":[\"alta\",\"media\",\"baja\"]},\"confianza\":{\"type\":\"NUMBER\",\"minimum\":0,\"maximum\":1},\"titulo\":{\"type\":\"STRING\"},\"resumen\":{\"type\":\"STRING\"},\"accion_requerida\":{\"type\":\"STRING\"},\"fecha_inicio\":{\"type\":[\"STRING\",\"null\"]},\"hora_inicio\":{\"type\":[\"STRING\",\"null\"]},\"fecha_fin\":{\"type\":[\"STRING\",\"null\"]},\"hora_fin\":{\"type\":[\"STRING\",\"null\"]},\"fecha_limite\":{\"type\":[\"STRING\",\"null\"]},\"ubicacion\":{\"type\":[\"STRING\",\"null\"]},\"organizador\":{\"type\":[\"STRING\",\"null\"]},\"participantes\":{\"type\":\"ARRAY\",\"items\":{\"type\":\"STRING\"}},\"enlace\":{\"type\":[\"STRING\",\"null\"]},\"codigo_verificacion\":{\"type\":[\"STRING\",\"null\"]},\"requiere_intervencion_usuario\":{\"type\":\"BOOLEAN\"}},\"required\":[\"categoria\",\"accion\",\"prioridad\",\"confianza\",\"titulo\",\"resumen\",\"accion_requerida\",\"fecha_inicio\",\"hora_inicio\",\"fecha_fin\",\"hora_fin\",\"fecha_limite\",\"ubicacion\",\"organizador\",\"participantes\",\"enlace\",\"codigo_verificacion\",\"requiere_intervencion_usuario\"]}}}",
+        "options": {}
+      },
+      "id": "gemini-secretary",
+      "name": "Gemini - Secretary Analysis",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [0, 200],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const email = $('Preparar correo').item.json;\nconst fallback = {\n  categoria: 'ignorar',\n  accion: 'ignorar',\n  prioridad: 'baja',\n  confianza: 0,\n  titulo: email.subject || '(sin asunto)',\n  resumen: '',\n  accion_requerida: '',\n  fecha_inicio: null,\n  hora_inicio: null,\n  fecha_fin: null,\n  hora_fin: null,\n  fecha_limite: null,\n  ubicacion: null,\n  organizador: null,\n  participantes: [],\n  enlace: null,\n  codigo_verificacion: null,\n  requiere_intervencion_usuario: true,\n  fallback: true\n};\n\ntry {\n  const raw = $json.candidates?.[0]?.content?.parts?.[0]?.text;\n  if (!raw) {\n    console.log('[SECRETARY] Gemini sin contenido, usando fallback');\n    return [{ json: { ...fallback, email, error: 'Gemini no devolvió contenido' } }];\n  }\n\n  let ai;\n  try {\n    ai = JSON.parse(raw);\n  } catch (e) {\n    console.log('[SECRETARY] JSON malformado de Gemini:', e.message);\n    return [{ json: { ...fallback, email, error: 'JSON malformado: ' + e.message } }];\n  }\n\n  const required = ['categoria','accion','prioridad','confianza','titulo','resumen','accion_requerida','fecha_inicio','hora_inicio','fecha_fin','hora_fin','fecha_limite','ubicacion','organizador','participantes','enlace','codigo_verificacion','requiere_intervencion_usuario'];\n  const missing = required.filter((key) => !Object.hasOwn(ai, key));\n  if (missing.length > 0) {\n    console.log('[SECRETARY] Campos faltantes en Gemini:', missing.join(', '));\n    missing.forEach((key) => {\n      if (key === 'categoria') ai.categoria = 'ignorar';\n      if (key === 'accion') ai.accion = 'ignorar';\n      if (key === 'prioridad') ai.prioridad = 'baja';\n      if (key === 'confianza') ai.confianza = 0;\n      if (key === 'titulo') ai.titulo = email.subject || '(sin asunto)';\n      if (key === 'resumen') ai.resumen = '';\n      if (key === 'accion_requerida') ai.accion_requerida = '';\n      if (key === 'fecha_inicio') ai.fecha_inicio = null;\n      if (key === 'hora_inicio') ai.hora_inicio = null;\n      if (key === 'fecha_fin') ai.fecha_fin = null;\n      if (key === 'hora_fin') ai.hora_fin = null;\n      if (key === 'fecha_limite') ai.fecha_limite = null;\n      if (key === 'ubicacion') ai.ubicacion = null;\n      if (key === 'organizador') ai.organizador = null;\n      if (key === 'participantes') ai.participantes = [];\n      if (key === 'enlace') ai.enlace = null;\n      if (key === 'codigo_verificacion') ai.codigo_verificacion = null;\n      if (key === 'requiere_intervencion_usuario') ai.requiere_intervencion_usuario = true;\n    });\n  }\n\n  const validCategories = ['agenda','tarea','importante','cuenta','seguridad','personal','laboral','ignorar'];\n  if (!validCategories.includes(ai.categoria)) {\n    console.log('[SECRETARY] Categoría inválida:', ai.categoria, '→ ignorar');\n    ai.categoria = 'ignorar';\n  }\n\n  const validActions = ['crear_evento','actualizar_evento','cancelar_evento','crear_tarea','notificar','procesar','ignorar'];\n  if (!validActions.includes(ai.accion)) {\n    console.log('[SECRETARY] Acción inválida:', ai.accion, '→ ignorar');\n    ai.accion = 'ignorar';\n  }\n\n  const validPriorities = ['alta','media','baja'];\n  if (!validPriorities.includes(ai.prioridad)) {\n    ai.prioridad = 'baja';\n  }\n\n  if (typeof ai.confianza !== 'number' || isNaN(ai.confianza) || ai.confianza < 0 || ai.confianza > 1) {\n    ai.confianza = 0;\n  }\n\n  const dateRegex = /^\\d{4}-\\d{2}-\\d{2}$/;\n  if (ai.fecha_inicio && !dateRegex.test(ai.fecha_inicio)) { ai.fecha_inicio = null; }\n  if (ai.fecha_fin && !dateRegex.test(ai.fecha_fin)) { ai.fecha_fin = null; }\n  if (ai.fecha_limite && !dateRegex.test(ai.fecha_limite)) { ai.fecha_limite = null; }\n\n  const timeRegex = /^\\d{2}:\\d{2}$/;\n  if (ai.hora_inicio && !timeRegex.test(ai.hora_inicio)) { ai.hora_inicio = null; }\n  if (ai.hora_fin && !timeRegex.test(ai.hora_fin)) { ai.hora_fin = null; }\n\n  if (ai.participantes && !Array.isArray(ai.participantes)) {\n    ai.participantes = [];\n  }\n\n  if (ai.requiere_intervencion_usuario !== true && ai.requiere_intervucion_usuario !== false) {\n    ai.requiere_intervencion_usuario = true;\n  }\n\n  console.log('[SECRETARY] Clasificado:', ai.categoria, '| Acción:', ai.accion, '| Prioridad:', ai.prioridad, '| Confianza:', ai.confianza);\n  return [{ json: { ...ai, email, fallback: false } }];\n} catch (e) {\n  console.log('[SECRETARY] Error inesperado en validación:', e.message);\n  return [{ json: { ...fallback, email, error: 'Error inesperado: ' + e.message } }];\n}"
+      },
+      "id": "parse-secretary",
+      "name": "Validar JSON Secretary",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [160, 200]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {"caseSensitive": true, "leftValue": "", "typeValidation": "strict"},
+          "conditions": [
+            {"leftValue": "={{$json.categoria}}", "rightValue": "agenda", "operator": {"type": "string", "operation": "equals"}},
+            {"leftValue": "={{$json.categoria}}", "rightValue": "tarea", "operator": {"type": "string", "operation": "equals"}},
+            {"leftValue": "={{$json.categoria}}", "rightValue": "importante", "operator": {"type": "string", "operation": "equals"}},
+            {"leftValue": "={{$json.categoria}}", "rightValue": "cuenta", "operator": {"type": "string", "operation": "equals"}},
+            {"leftValue": "={{$json.categoria}}", "rightValue": "seguridad", "operator": {"type": "string", "operation": "equals"}},
+            {"leftValue": "={{$json.categoria}}", "rightValue": "personal", "operator": {"type": "string", "operation": "equals"}},
+            {"leftValue": "={{$json.categoria}}", "rightValue": "laboral", "operator": {"type": "string", "operation": "equals"}}
+          ],
+          "combinator": "or"
+        },
+        "options": {}
+      },
+      "id": "is-actionable",
+      "name": "¿Requiere acción?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [320, 200]
+    },
+    {
+      "parameters": {
+        "jsCode": "const email = $('Preparar correo').item.json;\nconst ai = $json;\n\nconsole.log('[SECRETARY] Procesando:', ai.categoria, '| Acción:', ai.accion, '| Prioridad:', ai.prioridad);\nreturn [{ json: { ...ai, email } }];"
+      },
+      "id": "filter-actionable",
+      "name": "Preparar para procesar",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [480, 200]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {"caseSensitive": true, "leftValue": "", "typeValidation": "strict"},
+          "conditions": [
+            {"leftValue": "={{$json.accion}}", "rightValue": "crear_evento", "operator": {"type": "string", "operation": "equals"}}
+          ],
+          "combinator": "or"
+        },
+        "options": {}
+      },
+      "id": "is-create-event",
+      "name": "¿Crear evento?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [640, -200]
+    },
+    {
+      "parameters": {
+        "jsCode": "const ai = $json;\nconst email = $('Preparar correo').item.json;\n\n// Validación estricta: requiere fecha e hora de inicio\nif (!ai.fecha_inicio || !ai.hora_inicio || ai.confianza < 0.85) {\n  console.log('[SECRETARY] ERROR: crear_evento requiere fecha_inicio y hora_inicio con confianza >= 0.85');\n  console.log('[SECRETARY] fecha_inicio:', ai.fecha_inicio, '| hora_inicio:', ai.hora_inicio, '| confianza:', ai.confianza);\n  return [{ json: { ...ai, email, notification: 'event-incomplete' } }];\n}\n\nconst now = new Date();\nconst eventDate = new Date(ai.fecha_inicio + 'T' + ai.hora_inicio + ':00');\nif (eventDate <= now) {\n  console.log('[SECRETARY] Evento no es futuro:', eventDate);\n  return [{ json: { ...ai, email, notification: 'event-past' } }];\n}\n\nconst event = {\n  summary: ai.titulo || email.subject || '(sin asunto)',\n  description: ai.resumen || ai.accion_requerida || '',\n  location: ai.ubicacion || '',\n  start: {\n    dateTime: ai.fecha_inicio + 'T' + ai.hora_inicio + ':00',\n    timeZone: $env.TZ || 'Europe/Madrid'\n  },\n  end: {\n    dateTime: ai.fecha_fin && ai.hora_fin\n      ? ai.fecha_fin + 'T' + ai.hora_fin + ':00'\n      : ai.fecha_inicio + 'T' + ai.hora_inicio + ':00',\n    timeZone: $env.TZ || 'Europe/Madrid'\n  },\n  attendees: ai.participantes && Array.isArray(ai.participantes)\n    ? ai.participantes.map(p => ({ email: p, responseStatus: 'accepted' }))\n    : [],\n  conferenceData: ai.enlace ? {\n    createRequest: {\n      requestId: ai.titulo || email.subject || 'unknown',\n      conferenceSolutionKey: { type: 'hangoutsMeet' }\n    }\n  } : undefined\n};\n\nif (ai.organizador) {\n  event.description += (event.description ? '\\n\\n' : '') + 'Organizador: ' + ai.organizador;\n}\n\nif (ai.enlace) {\n  event.description += (event.description ? '\\n\\n' : '') + 'Enlace: ' + ai.enlace;\n}\n\nreturn [{ json: { action: 'crear_evento', event, ai, email } }];"
+      },
+      "id": "validate-create-event",
+      "name": "Validar evento nuevo",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [800, -200]
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "calendar": {"__rl": true, "mode": "list", "value": "primary"},
+        "start": "={{$json.event.start.dateTime}}",
+        "end": "={{$json.event.end.dateTime}}",
+        "summary": "={{$json.event.summary}}",
+        "description": "={{$json.event.description}}",
+        "location": "={{$json.event.location}}",
+        "conferenceData": {
+          "createRequest": {
+            "requestId": "={{$json.event.summary || 'unknown'}}",
+            "conferenceSolutionKey": {"type": "hangoutsMeet"}
+          }
+        }
+      },
+      "id": "calendar-create",
+      "name": "Google Calendar - Crear evento",
+      "type": "n8n-nodes-base.googleCalendar",
+      "typeVersion": 1.3,
+      "position": [960, -200],
+      "credentials": {"googleCalendarOAuth2Api": {"id": "", "name": "Google OAuth2"}},
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {"caseSensitive": true, "leftValue": "", "typeValidation": "strict"},
+          "conditions": [
+            {"leftValue": "={{$json.accion}}", "rightValue": "actualizar_evento", "operator": {"type": "string", "operation": "equals"}}
+          ],
+          "combinator": "or"
+        },
+        "options": {}
+      },
+      "id": "is-update-event",
+      "name": "¿Actualizar evento?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [640, 0]
+    },
+    {
+      "parameters": {
+        "jsCode": "const ai = $json;\nconst email = $('Preparar correo').item.json;\n\nif (ai.confianza < 0.85) {\n  console.log('[SECRETARY] ERROR: actualizar_evento requiere confianza >= 0.85');\n  return [{ json: { ...ai, email, notification: 'update-no-confidence' } }];\n}\n\nif (!ai.titulo && !ai.fecha_inicio && !ai.hora_inicio) {\n  console.log('[SECRETARY] ERROR: actualizar_evento requiere información para identificar evento');\n  return [{ json: { ...ai, email, notification: 'update-no-info' } }];\n}\n\nconsole.log('[SECRETARY] Actualizar evento:', ai.titulo, ai.fecha_inicio, ai.hora_inicio);\nreturn [{ json: { action: 'actualizar_evento', ai, email } }];"
+      },
+      "id": "validate-update-event",
+      "name": "Validar actualizar evento",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [800, 0]
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "calendar": {"__rl": true, "mode": "list", "value": "primary"},
+        "searchString": "={{$json.ai.titulo || ''}}",
+        "options": {
+          "timeMin": "={{new Date().toISOString()}}",
+          "timeMax": "={{new Date(new Date().setFullYear(new Date().getFullYear() + 1)).toISOString()}}"
+        }
+      },
+      "id": "calendar-find-for-update",
+      "name": "Google Calendar - Buscar eventos",
+      "type": "n8n-nodes-base.googleCalendar",
+      "typeVersion": 1.3,
+      "position": [960, 0],
+      "credentials": {"googleCalendarOAuth2Api": {"id": "", "name": "Google OAuth2"}},
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const ai = $json;\nconst events = $json;\nconst email = $('Preparar correo').item.json;\n\nconst matchingEvent = events?.find(e => {\n  const eventStart = e.start?.dateTime || e.start?.date;\n  if (!eventStart) return false;\n  return eventStart.includes(ai.fecha_inicio || '') && (ai.hora_inicio ? eventStart.includes(ai.hora_inicio) : true);\n}) || events?.[0];\n\nif (!matchingEvent) {\n  console.log('[SECRETARY] No se encontró evento para actualizar');\n  return [{ json: { ...ai, email, notification: 'update-no-match' } }];\n}\n\nconst update = {};\nif (ai.titulo) update.summary = ai.titulo;\nif (ai.resumen) update.description = ai.resumen;\nif (ai.ubicacion) update.location = ai.ubicacion;\nif (ai.fecha_inicio && ai.hora_inicio) {\n  update.start = { dateTime: ai.fecha_inicio + 'T' + ai.hora_inicio + ':00', timeZone: $env.TZ || 'Europe/Madrid' };\n}\nif (ai.fecha_fin && ai.hora_fin) {\n  update.end = { dateTime: ai.fecha_fin + 'T' + ai.hora_fin + ':00', timeZone: $env.TZ || 'Europe/Madrid' };\n}\n\nconsole.log('[SECRETARY] Actualizando evento', matchingEvent.id, 'con:', update);\nreturn [{ json: { action: 'actualizar_evento', eventId: matchingEvent.id, update, ai, email } }];"
+      },
+      "id": "process-update-event",
+      "name": "Procesar actualizar evento",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1120, 0]
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "calendar": {"__rl": true, "mode": "list", "value": "primary"},
+        "eventId": "={{$json.eventId}}",
+        "start": "={{$json.update.start ? $json.update.start.dateTime : undefined}}",
+        "end": "={{$json.update.end ? $json.update.end.dateTime : undefined}}",
+        "summary": "={{$json.update.summary || $json.event.summary || $json.email.subject}}",
+        "description": "={{$json.update.description || $json.event.description || $json.email.text}}",
+        "location": "={{$json.update.location || $json.event.location || ''}}"
+      },
+      "id": "calendar-update",
+      "name": "Google Calendar - Actualizar evento",
+      "type": "n8n-nodes-base.googleCalendar",
+      "typeVersion": 1.3,
+      "position": [1280, 0],
+      "credentials": {"googleCalendarOAuth2Api": {"id": "", "name": "Google OAuth2"}},
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {"caseSensitive": true, "leftValue": "", "typeValidation": "strict"},
+          "conditions": [
+            {"leftValue": "={{$json.accion}}", "rightValue": "cancelar_evento", "operator": {"type": "string", "operation": "equals"}}
+          ],
+          "combinator": "or"
+        },
+        "options": {}
+      },
+      "id": "is-cancel-event",
+      "name": "¿Cancelar evento?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [640, 200]
+    },
+    {
+      "parameters": {
+        "jsCode": "const ai = $json;\nconst email = $('Preparar correo').item.json;\n\nif (ai.confianza < 0.85) {\n  console.log('[SECRETARY] ERROR: cancelar_evento requiere confianza >= 0.85');\n  return [{ json: { ...ai, email, notification: 'cancel-no-confidence' } }];\n}\n\nif (!ai.titulo && !ai.fecha_inicio && !ai.hora_inicio) {\n  console.log('[SECRETARY] ERROR: cancelar_evento requiere información para identificar evento');\n  return [{ json: { ...ai, email, notification: 'cancel-no-info' } }];\n}\n\nconsole.log('[SECRETARY] Cancelar evento:', ai.titulo, ai.fecha_inicio, ai.hora_inicio);\nreturn [{ json: { action: 'cancelar_evento', ai, email } }];"
+      },
+      "id": "validate-cancel-event",
+      "name": "Validar cancelar evento",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [800, 200]
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "calendar": {"__rl": true, "mode": "list", "value": "primary"},
+        "searchString": "={{$json.ai.titulo || ''}}",
+        "options": {
+          "timeMin": "={{new Date().toISOString()}}",
+          "timeMax": "={{new Date(new Date().setFullYear(new Date().getFullYear() + 1)).toISOString()}}"
+        }
+      },
+      "id": "calendar-find-for-cancel",
+      "name": "Google Calendar - Buscar para cancelar",
+      "type": "n8n-nodes-base.googleCalendar",
+      "typeVersion": 1.3,
+      "position": [960, 200],
+      "credentials": {"googleCalendarOAuth2Api": {"id": "", "name": "Google OAuth2"}},
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const ai = $json;\nconst events = $json;\nconst email = $('Preparar correo').item.json;\n\nconst matchingEvent = events?.find(e => {\n  const eventStart = e.start?.dateTime || e.start?.date;\n  if (!eventStart) return false;\n  return eventStart.includes(ai.fecha_inicio || '') && (ai.hora_inicio ? eventStart.includes(ai.hora_inicio) : true);\n}) || events?.[0];\n\nif (!matchingEvent) {\n  console.log('[SECRETARY] No se encontró evento para cancelar');\n  return [{ json: { ...ai, email, notification: 'cancel-no-match' } }];\n}\n\nconsole.log('[SECRETARY] Cancelando evento', matchingEvent.id);\nreturn [{ json: { action: 'cancelar_evento', eventId: matchingEvent.id, ai, email } }];"
+      },
+      "id": "process-cancel-event",
+      "name": "Procesar cancelar evento",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1120, 200]
+    },
+    {
+      "parameters": {
+        "operation": "delete",
+        "calendar": {"__rl": true, "mode": "list", "value": "primary"},
+        "eventId": "={{$json.eventId}}"
+      },
+      "id": "calendar-delete",
+      "name": "Google Calendar - Cancelar evento",
+      "type": "n8n-nodes-base.googleCalendar",
+      "typeVersion": 1.3,
+      "position": [1280, 200],
+      "credentials": {"googleCalendarOAuth2Api": {"id": "", "name": "Google OAuth2"}},
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {"caseSensitive": true, "leftValue": "", "typeValidation": "strict"},
+          "conditions": [
+            {"leftValue": "={{$json.accion}}", "rightValue": "crear_tarea", "operator": {"type": "string", "operation": "equals"}}
+          ],
+          "combinator": "or"
+        },
+        "options": {}
+      },
+      "id": "is-create-task",
+      "name": "¿Crear tarea?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [640, 400]
+    },
+    {
+      "parameters": {
+        "jsCode": "const ai = $json;\nconst email = $('Preparar correo').item.json;\n\nconsole.log('[SECRETARY] Enviar notificación de tarea:', ai.titulo);\nreturn [{ json: { ...ai, email, notification: 'task-notification' } }];"
+      },
+      "id": "send-task-notification",
+      "name": "Enviar notificación tarea",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [800, 400]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {"caseSensitive": true, "leftValue": "", "typeValidation": "strict"},
+          "conditions": [
+            {"leftValue": "={{$json.accion}}", "rightValue": "notificar", "operator": {"type": "string", "operation": "equals"}}
+          ],
+          "combinator": "or"
+        },
+        "options": {}
+      },
+      "id": "is-notify",
+      "name": "¿Notificar?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [640, 600]
+    },
+    {
+      "parameters": {
+        "jsCode": "const ai = $json;\nconst email = $('Preparar correo').item.json;\n\nconsole.log('[SECRETARY] Enviar notificación importante:', ai.titulo);\nreturn [{ json: { ...ai, email, notification: 'important-notification' } }];"
+      },
+      "id": "send-notify-notification",
+      "name": "Enviar notificación importante",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [800, 600]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {"caseSensitive": true, "leftValue": "", "typeValidation": "strict"},
+          "conditions": [
+            {"leftValue": "={{$json.accion}}", "rightValue": "procesar", "operator": {"type": "string", "operation": "equals"}}
+          ],
+          "combinator": "or"
+        },
+        "options": {}
+      },
+      "id": "is-process",
+      "name": "¿Procesar?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [640, 800]
+    },
+    {
+      "parameters": {
+        "jsCode": "const ai = $json;\nconst email = $('Preparar correo').item.json;\n\nconsole.log('[SECRETARY] Enviar notificación procesar (seguridad/cuenta):', ai.titulo);\nreturn [{ json: { ...ai, email, notification: 'process-notification' } }];"
+      },
+      "id": "send-process-notification",
+      "name": "Enviar notificación procesar",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [800, 800]
+    }
+  ],
+  "connections": {
+    "Gmail Trigger": {
+      "main": [
+        [
+          {"node": "Gmail - Listar mensajes", "type": "main", "index": 0}
+        ]
+      ]
+    },
+    "Webhook - Email Intake": {
+      "main": [
+        [
+          {"node": "Preparar correo", "type": "main", "index": 0}
+        ]
+      ]
+    },
+    "Gmail - Listar mensajes": {
+      "main": [
+        [
+          {"node": "Preparar correo", "type": "main", "index": 0}
+        ]
+      ]
+    },
+    "Preparar correo": {
+      "main": [
+        [
+          {"node": "Excluir spam, promociones y social", "type": "main", "index": 0}
+        ]
+      ]
+    },
+    "Excluir spam, promociones y social": {
+      "main": [
+        [
+          {"node": "Evitar duplicados", "type": "main", "index": 0}
+        ]
+      ]
+    },
+    "Evitar duplicados": {
+      "main": [
+        [
+          {"node": "Verificar duplicado", "type": "main", "index": 0}
+        ]
+      ]
+    },
+    "Verificar duplicado": {
+      "main": [
+        [
+          {"node": "Gemini - Secretary Analysis", "type": "main", "index": 0}
+        ]
+      ]
+    },
+    "Gemini - Secretary Analysis": {
+      "main": [
+        [
+          {"node": "Validar JSON Secretary", "type": "main", "index": 0}
+        ]
+      ]
+    },
+    "Validar JSON Secretary": {
+      "main": [
+        [
+          {"node": "¿Requiere acción?", "type": "main", "index": 0}
+        ]
+      ]
+    },
+    "¿Requiere acción?": {
+      "main": [
+        [
+          {"node": "Preparar para procesar", "type": "main", "index": 0}
+        ]
+      ]
+    },
+    "Preparar para procesar": {
+      "main": [
+        [
+          {"node": "¿Crear evento?", "type": "main", "index": 0},
+          {"node": "¿Actualizar evento?", "type": "main", "index": 0},
+          {"node": "¿Cancelar evento?", "type": "main", "index": 0},
+          {"node": "¿Crear tarea?", "type": "main", "index": 0},
+          {"node": "¿Notificar?", "type": "main", "index": 0},
+          {"node": "¿Procesar?", "type": "main", "index": 0}
+        ]
+      ]
+    },
+    "¿Crear evento?": {
+      "main": [
+        [
+          {"node": "Validar evento nuevo", "type": "main", "index": 0}
+        ]
+      ]
+    },
+    "Validar evento nuevo": {
+      "main": [
+        [
+          {"node": "Google Calendar - Crear evento", "type": "main", "index": 0}
+        ]
+      ]
+    },
+    "¿Actualizar evento?": {
+      "main": [
+        [
+          {"node": "Validar actualizar evento", "type": "main", "index": 0}
+        ]
+      ]
+    },
+    "Validar actualizar evento": {
+      "main": [
+        [
+          {"node": "Google Calendar - Buscar eventos", "type": "main", "index": 0}
+        ]
+      ]
+    },
+    "Google Calendar - Buscar eventos": {
+      "main": [
+        [
+          {"node": "Procesar actualizar evento", "type": "main", "index": 0}
+        ]
+      ]
+    },
+    "Procesar actualizar evento": {
+      "main": [
+        [
+          {"node": "Google Calendar - Actualizar evento", "type": "main", "index": 0}
+        ]
+      ]
+    },
+    "¿Cancelar evento?": {
+      "main": [
+        [
+          {"node": "Validar cancelar evento", "type": "main", "index": 0}
+        ]
+      ]
+    },
+    "Validar cancelar evento": {
+      "main": [
+        [
+          {"node": "Google Calendar - Buscar para cancelar", "type": "main", "index": 0}
+        ]
+      ]
+    },
+    "Google Calendar - Buscar para cancelar": {
+      "main": [
+        [
+          {"node": "Procesar cancelar evento", "type": "main", "index": 0}
+        ]
+      ]
+    },
+    "Procesar cancelar evento": {
+      "main": [
+        [
+          {"node": "Google Calendar - Cancelar evento", "type": "main", "index": 0}
+        ]
+      ]
+    },
+    "¿Crear tarea?": {
+      "main": [
+        [
+          {"node": "Enviar notificación tarea", "type": "main", "index": 0}
+        ]
+      ]
+    },
+    "¿Notificar?": {
+      "main": [
+        [
+          {"node": "Enviar notificación importante", "type": "main", "index": 0}
+        ]
+      ]
+    },
+    "¿Procesar?": {
+      "main": [
+        [
+          {"node": "Enviar notificación procesar", "type": "main", "index": 0}
+        ]
+      ]
+    }
+  },
+  "settings": {}
+}

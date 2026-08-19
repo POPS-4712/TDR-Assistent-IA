@@ -1,0 +1,18 @@
+{
+  "responseMimeType": "application/json",
+  "responseJsonSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": ["categoria", "accion", "titulo", "descripcion", "fecha", "hora", "prioridad", "resumen", "confianza"],
+    "properties": {
+      "categoria": {"type": "string", "enum": ["Agenda", "Laboral", "Noticias", "Marca Personal", "Otro"]},
+      "accion": {"type": "string", "enum": ["crear_evento", "crear_tarea", "resumir_oferta", "resumir_noticia", "crear_borrador_linkedin", "ninguna"]},
+      "titulo": {"type": "string"}, "descripcion": {"type": "string"},
+      "fecha": {"type": "string", "description": "YYYY-MM-DD o cadena vacía"},
+      "hora": {"type": "string", "description": "HH:mm o cadena vacía"},
+      "prioridad": {"type": "string", "enum": ["alta", "media", "baja"]},
+      "resumen": {"type": "string"}, "confianza": {"type": "number", "minimum": 0, "maximum": 1}
+    }
+  },
+  "systemInstruction": "Responde sólo con un objeto JSON válido que cumpla exactamente el esquema. No uses Markdown ni texto externo. Interpreta fechas relativas sólo respecto de la fecha y zona indicadas. Nunca inventes fechas, horas, enlaces o requisitos; usa cadena vacía cuando no exista el dato."
+}

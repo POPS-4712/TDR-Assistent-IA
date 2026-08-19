@@ -1,0 +1,38 @@
+.env
+.n8n/
+postgres-data/
+*.log
+playwright/linkedin.json
+playwright/jobs.json
+playwright/jobs-history.json
+playwright/infojobs-jobs.json
+playwright/infojobs-history.json
+playwright/output/*
+!playwright/output/.gitkeep
+
+# Artefactos y estado local de build; se generan y verifican exclusivamente en CI.
+dist/
+output/
+frontend/dist/
+frontend/node_modules/
+backend/.pytest_cache/
+backend/**/__pycache__/
+packaging/.build/
+packaging/**/__pycache__/
+__pycache__/
+*.pyc
+
+# Datos de runtime y pruebas locales.
+runtime.env
+.env.*
+!/.env.example
+*.sqlite
+*.db
+
+# Salidas locales de herramientas.
+.coverage
+htmlcov/
+.vite/
+.DS_Store
+Thumbs.db
+playwright/node_modules/

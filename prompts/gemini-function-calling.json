@@ -1,0 +1,17 @@
+{
+  "tools": [{"functionDeclarations": [{
+    "name": "classify_email",
+    "description": "Clasifica un correo y decide una acción segura para el asistente.",
+    "parameters": {
+      "type": "OBJECT",
+      "required": ["categoria", "accion", "titulo", "descripcion", "fecha", "hora", "prioridad", "resumen", "confianza"],
+      "properties": {
+        "categoria": {"type": "STRING", "enum": ["Agenda", "Laboral", "Noticias", "Marca Personal", "Otro"]},
+        "accion": {"type": "STRING", "enum": ["crear_evento", "crear_tarea", "resumir_oferta", "resumir_noticia", "crear_borrador_linkedin", "ninguna"]},
+        "titulo": {"type": "STRING"}, "descripcion": {"type": "STRING"}, "fecha": {"type": "STRING"}, "hora": {"type": "STRING"},
+        "prioridad": {"type": "STRING", "enum": ["alta", "media", "baja"]}, "resumen": {"type": "STRING"}, "confianza": {"type": "NUMBER"}
+      }
+    }
+  }]}],
+  "toolConfig": {"functionCallingConfig": {"mode": "ANY", "allowedFunctionNames": ["classify_email"]}}
+}

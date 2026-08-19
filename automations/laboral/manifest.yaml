@@ -1,0 +1,52 @@
+id: laboral
+name: Laboral Job Scraper
+description: Automated job scraping from LinkedIn with AI filtering
+version: 1.0.0
+status: disabled
+category: productivity
+icon: briefcase
+
+requirements:
+  - provider: postgresql
+    type: connection
+  - provider: gemini
+    type: api_key
+  - provider: telegram
+    type: token
+
+dependencies:
+  - postgresql
+  - playwright
+
+n8n:
+  workflow_file: workflow.json
+  credential_mapping:
+    postgres: postgresql
+    # Note: Workflow uses GEMINI_API_KEY, TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID env vars directly
+    # Not mapped to n8n credentials currently
+
+setup:
+  - description: "Configure PostgreSQL connection for job storage (credential name: 'Postgres assistant')"
+  - description: "Add Gemini API key as environment variable GEMINI_API_KEY"
+  - description: "Set GEMINI_MODEL environment variable (e.g., gemini-2.5-flash)"
+  - description: "Configure Telegram bot token as environment variable TELEGRAM_BOT_TOKEN"
+  - description: "Set Telegram chat ID as environment variable TELEGRAM_CHAT_ID"
+  - description: "Set up Playwright scraper service (PLAYWRIGHT_BASE_URL)"
+
+teardown:
+  - description: "Deactivate workflow in n8n"
+  - description: "Remove automation credentials mapping"
+  - description: "Delete automation metadata"
+
+metadata:
+  auto_enable: false
+  source_workflow: "02-laboral.json"
+  actual_ai_provider: "gemini"
+  actual_notification: "telegram"
+  env_vars_required:
+    - GEMINI_API_KEY
+    - GEMINI_MODEL
+    - TELEGRAM_BOT_TOKEN
+    - TELEGRAM_CHAT_ID
+    - PLAYWRIGHT_BASE_URL
+    - TZ

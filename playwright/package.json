@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json.schemastore.org/package.json",
+  "name": "ofertas_trabajo",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "start": "node server.js",
+    "login": "node login.js",
+    "scrape": "node scraper.js",
+    "scrape:infojobs": "node infojobs-scraper.js",
+    "process": "node process.js",
+    "update": "node update.js",
+    "test": "node --test test/pipeline.test.js test/infojobs.test.js",
+    "check": "node --check config.js && node --check normalize.js && node --check filters.js && node --check history.js && node --check extractor.js && node --check scraper.js && node --check infojobs-config.js && node --check infojobs-robots.js && node --check infojobs-extractor.js && node --check infojobs-normalize.js && node --check infojobs-history.js && node --check infojobs-scraper.js && node --check process.js && node --check update.js && node --check server.js && node --check login.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "express": "^5.2.1",
+    "playwright": "^1.62.1"
+  }
+}

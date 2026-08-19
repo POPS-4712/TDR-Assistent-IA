@@ -1,0 +1,1141 @@
+{
+  "name": "AI Personal Assistant - Personal Brand",
+  "nodes": [
+    {
+      "parameters": {
+        "triggerTimes": {
+          "item": [
+            {
+              "mode": "everyDay",
+              "hour": 18,
+              "minute": 0
+            }
+          ]
+        }
+      },
+      "id": "cron",
+      "name": "Búsqueda diaria",
+      "type": "n8n-nodes-base.cron",
+      "typeVersion": 1.2,
+      "position": [
+        -1088,
+        224
+      ]
+    },
+    {
+      "parameters": {
+        "url": "https://news.google.com/rss/search?q=OpenAI&hl=es&gl=ES&ceid=ES%3Aes",
+        "options": {}
+      },
+      "id": "openai",
+      "name": "RSS - OpenAI",
+      "type": "n8n-nodes-base.rssFeedRead",
+      "typeVersion": 1,
+      "position": [
+        -848,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "url": "https://news.google.com/rss/search?q=Google+AI&hl=es&gl=ES&ceid=ES%3Aes",
+        "options": {}
+      },
+      "id": "google",
+      "name": "RSS - Google",
+      "type": "n8n-nodes-base.rssFeedRead",
+      "typeVersion": 1,
+      "position": [
+        -848,
+        128
+      ]
+    },
+    {
+      "parameters": {
+        "url": "https://news.google.com/rss/search?q=Microsoft+AI&hl=es&gl=ES&ceid=ES%3Aes",
+        "options": {}
+      },
+      "id": "microsoft",
+      "name": "RSS - Microsoft",
+      "type": "n8n-nodes-base.rssFeedRead",
+      "typeVersion": 1,
+      "position": [
+        -848,
+        256
+      ]
+    },
+    {
+      "parameters": {
+        "url": "https://news.google.com/rss/search?q=NVIDIA&hl=es&gl=ES&ceid=ES%3Aes",
+        "options": {}
+      },
+      "id": "nvidia",
+      "name": "RSS - NVIDIA",
+      "type": "n8n-nodes-base.rssFeedRead",
+      "typeVersion": 1,
+      "position": [
+        -848,
+        384
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const title = $json.title ?? '';\nconst link = $json.link ?? $json.guid ?? '';\nconst key = title.toLowerCase().normalize('NFD').replace(/[\\u0300-\\u036f]/g, '').replace(/[^a-z0-9 ]/g, '').trim();\nreturn [{json:{...$json, title, link, text:`${title} ${$json.contentSnippet ?? $json.content ?? ''}`, item_key:`brand:${key}`}}];"
+      },
+      "id": "normalize",
+      "name": "Normalizar fuente",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -576,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO assistant_processed_items (item_key, source, title, payload) VALUES ('{{$json.item_key.replace(/'/g, \"''\")}}', 'personal_brand', '{{$json.title.replace(/'/g, \"''\")}}', '{}'::jsonb) ON CONFLICT (item_key) DO NOTHING RETURNING item_key;",
+        "options": {}
+      },
+      "id": "dedupe",
+      "name": "Evitar duplicados",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        -336,
+        0
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "NNPEvTSppGjw7rhh",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "{\"contents\":[{\"parts\":[{\"text\":\"Redacta un post de LinkedIn profesional en español, máximo 1.000 caracteres, con una reflexión útil para profesionales de IA, automatización o sector espacial. No inventes cifras ni hechos y evita tono publicitario. Noticia: {{$('Normalizar fuente').item.json.title}}. Enlace: {{$('Normalizar fuente').item.json.link}}. Contexto: {{$('Normalizar fuente').item.json.text}}\"}]}],\"generationConfig\":{\"responseMimeType\":\"application/json\",\"responseSchema\":{\"type\":\"OBJECT\",\"properties\":{\"titulo\":{\"type\":\"STRING\"},\"borrador_linkedin\":{\"type\":\"STRING\"},\"hashtags\":{\"type\":\"ARRAY\",\"items\":{\"type\":\"STRING\"}},\"enlace\":{\"type\":\"STRING\"}},\"required\":[\"titulo\",\"borrador_linkedin\",\"hashtags\",\"enlace\"]}}}",
+        "options": {}
+      },
+      "id": "gemini",
+      "name": "Gemini - Borrador LinkedIn",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -96,
+        0
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000,
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "VakiYJAkfFfFoqDy",
+          "name": "Header Auth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = JSON.parse($json.candidates?.[0]?.content?.parts?.[0]?.text ?? '{}');\nif (!data.titulo || !data.borrador_linkedin) throw new Error('JSON de Gemini inválido');\nconst tags = Array.isArray(data.hashtags) ? data.hashtags.join(' ') : (data.hashtags ?? '');\nreturn [{json:{...data, content:`${data.borrador_linkedin}\\n\\n${tags}\\n\\nFuente: ${data.enlace ?? ''}`}}];"
+      },
+      "id": "parse",
+      "name": "Validar JSON Gemini",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        144,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "folderId": "197HhD0ZOr0Q3W88R8xn3dFE0-_BgtWrO",
+        "title": "={{'LinkedIn - ' + $json.titulo}}"
+      },
+      "id": "docs",
+      "name": "Google Docs - Crear borrador",
+      "type": "n8n-nodes-base.googleDocs",
+      "typeVersion": 2,
+      "position": [
+        384,
+        0
+      ],
+      "credentials": {
+        "googleDocsOAuth2Api": {
+          "id": "5UGiKefcUVdREYf7",
+          "name": "Google Docs account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentURL": "={{ 'https://docs.google.com/document/d/' + $('Google Docs - Crear borrador').first().json.id + '/edit' }}",
+        "actionsUi": {
+          "actionFields": [
+            {
+              "action": "insert",
+              "text": "={{ $('Validar JSON Gemini').first().json.content }}"
+            }
+          ]
+        }
+      },
+      "id": "docs-insert-content",
+      "name": "Google Docs - Escribir borrador",
+      "type": "n8n-nodes-base.googleDocs",
+      "typeVersion": 2,
+      "position": [
+        624,
+        0
+      ],
+      "credentials": {
+        "googleDocsOAuth2Api": {
+          "id": "5UGiKefcUVdREYf7",
+          "name": "Google Docs account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "https://news.google.com/rss/search?q=SpaceX+OR+Airbus+OR+ESA+OR+NASA&hl=es&gl=ES&ceid=ES%3Aes",
+        "options": {}
+      },
+      "id": "space",
+      "name": "RSS - Espacio",
+      "type": "n8n-nodes-base.rssFeedRead",
+      "typeVersion": 1,
+      "position": [
+        -848,
+        512
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const title = $json.title ?? '';\nconst link = $json.link ?? $json.guid ?? '';\nconst key = title.toLowerCase().normalize('NFD').replace(/[\\u0300-\\u036f]/g, '').replace(/[^a-z0-9 ]/g, '').trim();\nreturn [{json:{...$json, title, link, text:`${title} ${$json.contentSnippet ?? $json.content ?? ''}`, item_key:`brand:${key}`}}];"
+      },
+      "id": "a5b74ac1-1f27-4a24-9ea5-c96fb0991573",
+      "name": "Normalizar fuente1",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -576,
+        128
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO assistant_processed_items (item_key, source, title, payload) VALUES ('{{$json.item_key.replace(/'/g, \"''\")}}', 'personal_brand', '{{$json.title.replace(/'/g, \"''\")}}', '{}'::jsonb) ON CONFLICT (item_key) DO NOTHING RETURNING item_key;",
+        "options": {}
+      },
+      "id": "80127342-2aa0-47d5-bb02-f794f98da5f7",
+      "name": "Evitar duplicados1",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        -336,
+        128
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "NNPEvTSppGjw7rhh",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "{\"contents\":[{\"parts\":[{\"text\":\"Redacta un post de LinkedIn profesional en español, máximo 1.000 caracteres, con una reflexión útil para profesionales de IA, automatización o sector espacial. No inventes cifras ni hechos y evita tono publicitario. Noticia: {{$('Normalizar fuente').item.json.title}}. Enlace: {{$('Normalizar fuente').item.json.link}}. Contexto: {{$('Normalizar fuente').item.json.text}}\"}]}],\"generationConfig\":{\"responseMimeType\":\"application/json\",\"responseSchema\":{\"type\":\"OBJECT\",\"properties\":{\"titulo\":{\"type\":\"STRING\"},\"borrador_linkedin\":{\"type\":\"STRING\"},\"hashtags\":{\"type\":\"ARRAY\",\"items\":{\"type\":\"STRING\"}},\"enlace\":{\"type\":\"STRING\"}},\"required\":[\"titulo\",\"borrador_linkedin\",\"hashtags\",\"enlace\"]}}}",
+        "options": {}
+      },
+      "id": "bc498692-d5b2-428f-a0fb-487274bfdea4",
+      "name": "Gemini - Borrador LinkedIn1",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -96,
+        128
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000,
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "VakiYJAkfFfFoqDy",
+          "name": "Header Auth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = JSON.parse($json.candidates?.[0]?.content?.parts?.[0]?.text ?? '{}');\nif (!data.titulo || !data.borrador_linkedin) throw new Error('JSON de Gemini inválido');\nconst tags = Array.isArray(data.hashtags) ? data.hashtags.join(' ') : (data.hashtags ?? '');\nreturn [{json:{...data, content:`${data.borrador_linkedin}\\n\\n${tags}\\n\\nFuente: ${data.enlace ?? ''}`}}];"
+      },
+      "id": "667b7545-7068-4990-b2a1-fd9be5046a21",
+      "name": "Validar JSON Gemini1",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        144,
+        128
+      ]
+    },
+    {
+      "parameters": {
+        "folderId": "16UJRKfSiyOsiX6KD9HPDuOk16no8bN-m",
+        "title": "={{'LinkedIn - ' + $json.titulo}}"
+      },
+      "id": "94f53ea9-0485-4d39-b26f-c4e5cb0b8b55",
+      "name": "Google Docs - Crear borrador1",
+      "type": "n8n-nodes-base.googleDocs",
+      "typeVersion": 2,
+      "position": [
+        384,
+        128
+      ],
+      "credentials": {
+        "googleDocsOAuth2Api": {
+          "id": "5UGiKefcUVdREYf7",
+          "name": "Google Docs account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentURL": "={{ 'https://docs.google.com/document/d/' + $('Google Docs - Crear borrador1').first().json.id + '/edit' }}",
+        "actionsUi": {
+          "actionFields": [
+            {
+              "action": "insert",
+              "text": "={{ $('Validar JSON Gemini1').first().json.content }}"
+            }
+          ]
+        }
+      },
+      "id": "66cf015f-15cd-4a0f-8e5d-170bc9e6e8f8",
+      "name": "Google Docs - Escribir borrador1",
+      "type": "n8n-nodes-base.googleDocs",
+      "typeVersion": 2,
+      "position": [
+        624,
+        128
+      ],
+      "credentials": {
+        "googleDocsOAuth2Api": {
+          "id": "5UGiKefcUVdREYf7",
+          "name": "Google Docs account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const title = $json.title ?? '';\nconst link = $json.link ?? $json.guid ?? '';\nconst key = title.toLowerCase().normalize('NFD').replace(/[\\u0300-\\u036f]/g, '').replace(/[^a-z0-9 ]/g, '').trim();\nreturn [{json:{...$json, title, link, text:`${title} ${$json.contentSnippet ?? $json.content ?? ''}`, item_key:`brand:${key}`}}];"
+      },
+      "id": "430f0436-f556-477d-be0d-887eb9794fc5",
+      "name": "Normalizar fuente2",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -576,
+        256
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO assistant_processed_items (item_key, source, title, payload) VALUES ('{{$json.item_key.replace(/'/g, \"''\")}}', 'personal_brand', '{{$json.title.replace(/'/g, \"''\")}}', '{}'::jsonb) ON CONFLICT (item_key) DO NOTHING RETURNING item_key;",
+        "options": {}
+      },
+      "id": "80326099-36fa-4121-8bc9-1ca769aeab48",
+      "name": "Evitar duplicados2",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        -336,
+        256
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "NNPEvTSppGjw7rhh",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "{\"contents\":[{\"parts\":[{\"text\":\"Redacta un post de LinkedIn profesional en español, máximo 1.000 caracteres, con una reflexión útil para profesionales de IA, automatización o sector espacial. No inventes cifras ni hechos y evita tono publicitario. Noticia: {{$('Normalizar fuente').item.json.title}}. Enlace: {{$('Normalizar fuente').item.json.link}}. Contexto: {{$('Normalizar fuente').item.json.text}}\"}]}],\"generationConfig\":{\"responseMimeType\":\"application/json\",\"responseSchema\":{\"type\":\"OBJECT\",\"properties\":{\"titulo\":{\"type\":\"STRING\"},\"borrador_linkedin\":{\"type\":\"STRING\"},\"hashtags\":{\"type\":\"ARRAY\",\"items\":{\"type\":\"STRING\"}},\"enlace\":{\"type\":\"STRING\"}},\"required\":[\"titulo\",\"borrador_linkedin\",\"hashtags\",\"enlace\"]}}}",
+        "options": {}
+      },
+      "id": "96395c8b-b0e6-4cb0-a499-d5e791f91db2",
+      "name": "Gemini - Borrador LinkedIn2",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -96,
+        256
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000,
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "VakiYJAkfFfFoqDy",
+          "name": "Header Auth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = JSON.parse($json.candidates?.[0]?.content?.parts?.[0]?.text ?? '{}');\nif (!data.titulo || !data.borrador_linkedin) throw new Error('JSON de Gemini inválido');\nconst tags = Array.isArray(data.hashtags) ? data.hashtags.join(' ') : (data.hashtags ?? '');\nreturn [{json:{...data, content:`${data.borrador_linkedin}\\n\\n${tags}\\n\\nFuente: ${data.enlace ?? ''}`}}];"
+      },
+      "id": "344d17a6-a1f3-4875-9155-c62308454067",
+      "name": "Validar JSON Gemini2",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        144,
+        256
+      ]
+    },
+    {
+      "parameters": {
+        "folderId": "1KuMxxfWezAYuRX0Z64t1jMenXYVh_Hlf",
+        "title": "={{'LinkedIn - ' + $json.titulo}}"
+      },
+      "id": "edd1f3a0-87f7-4b62-9bfc-aa29ca233752",
+      "name": "Google Docs - Crear borrador2",
+      "type": "n8n-nodes-base.googleDocs",
+      "typeVersion": 2,
+      "position": [
+        384,
+        256
+      ],
+      "credentials": {
+        "googleDocsOAuth2Api": {
+          "id": "5UGiKefcUVdREYf7",
+          "name": "Google Docs account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentURL": "={{ 'https://docs.google.com/document/d/' + $('Google Docs - Crear borrador2').first().json.id + '/edit' }}",
+        "actionsUi": {
+          "actionFields": [
+            {
+              "action": "insert",
+              "text": "={{ $('Validar JSON Gemini2').first().json.content }}"
+            }
+          ]
+        }
+      },
+      "id": "566cee20-9d26-4a58-8701-9c1b8d911290",
+      "name": "Google Docs - Escribir borrador2",
+      "type": "n8n-nodes-base.googleDocs",
+      "typeVersion": 2,
+      "position": [
+        624,
+        256
+      ],
+      "credentials": {
+        "googleDocsOAuth2Api": {
+          "id": "5UGiKefcUVdREYf7",
+          "name": "Google Docs account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const title = $json.title ?? '';\nconst link = $json.link ?? $json.guid ?? '';\nconst key = title.toLowerCase().normalize('NFD').replace(/[\\u0300-\\u036f]/g, '').replace(/[^a-z0-9 ]/g, '').trim();\nreturn [{json:{...$json, title, link, text:`${title} ${$json.contentSnippet ?? $json.content ?? ''}`, item_key:`brand:${key}`}}];"
+      },
+      "id": "2db9a90a-8d68-4fd4-b8bb-1a411b006de7",
+      "name": "Normalizar fuente3",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -576,
+        384
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO assistant_processed_items (item_key, source, title, payload) VALUES ('{{$json.item_key.replace(/'/g, \"''\")}}', 'personal_brand', '{{$json.title.replace(/'/g, \"''\")}}', '{}'::jsonb) ON CONFLICT (item_key) DO NOTHING RETURNING item_key;",
+        "options": {}
+      },
+      "id": "92b83dd2-97e1-4696-9e68-422e4076ce6f",
+      "name": "Evitar duplicados3",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        -336,
+        384
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "NNPEvTSppGjw7rhh",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "{\"contents\":[{\"parts\":[{\"text\":\"Redacta un post de LinkedIn profesional en español, máximo 1.000 caracteres, con una reflexión útil para profesionales de IA, automatización o sector espacial. No inventes cifras ni hechos y evita tono publicitario. Noticia: {{$('Normalizar fuente').item.json.title}}. Enlace: {{$('Normalizar fuente').item.json.link}}. Contexto: {{$('Normalizar fuente').item.json.text}}\"}]}],\"generationConfig\":{\"responseMimeType\":\"application/json\",\"responseSchema\":{\"type\":\"OBJECT\",\"properties\":{\"titulo\":{\"type\":\"STRING\"},\"borrador_linkedin\":{\"type\":\"STRING\"},\"hashtags\":{\"type\":\"ARRAY\",\"items\":{\"type\":\"STRING\"}},\"enlace\":{\"type\":\"STRING\"}},\"required\":[\"titulo\",\"borrador_linkedin\",\"hashtags\",\"enlace\"]}}}",
+        "options": {}
+      },
+      "id": "1c728923-0582-4d61-ac3c-343a1bfe27ed",
+      "name": "Gemini - Borrador LinkedIn3",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -96,
+        384
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000,
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "VakiYJAkfFfFoqDy",
+          "name": "Header Auth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = JSON.parse($json.candidates?.[0]?.content?.parts?.[0]?.text ?? '{}');\nif (!data.titulo || !data.borrador_linkedin) throw new Error('JSON de Gemini inválido');\nconst tags = Array.isArray(data.hashtags) ? data.hashtags.join(' ') : (data.hashtags ?? '');\nreturn [{json:{...data, content:`${data.borrador_linkedin}\\n\\n${tags}\\n\\nFuente: ${data.enlace ?? ''}`}}];"
+      },
+      "id": "8cf5c187-f7d3-4b5e-9fe4-7765af195a89",
+      "name": "Validar JSON Gemini3",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        144,
+        384
+      ]
+    },
+    {
+      "parameters": {
+        "folderId": "1V0w-6dUL8i9B09O2njEiY_5g_hNVqI03",
+        "title": "={{'LinkedIn - ' + $json.titulo}}"
+      },
+      "id": "737700a4-c42c-421c-914b-524bb0318353",
+      "name": "Google Docs - Crear borrador3",
+      "type": "n8n-nodes-base.googleDocs",
+      "typeVersion": 2,
+      "position": [
+        384,
+        384
+      ],
+      "credentials": {
+        "googleDocsOAuth2Api": {
+          "id": "5UGiKefcUVdREYf7",
+          "name": "Google Docs account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentURL": "={{ 'https://docs.google.com/document/d/' + $('Google Docs - Crear borrador3').first().json.id + '/edit' }}",
+        "actionsUi": {
+          "actionFields": [
+            {
+              "action": "insert",
+              "text": "={{ $('Validar JSON Gemini3').first().json.content }}"
+            }
+          ]
+        }
+      },
+      "id": "62f9ba5d-03f4-4e60-b4a8-06e7b038d31b",
+      "name": "Google Docs - Escribir borrador3",
+      "type": "n8n-nodes-base.googleDocs",
+      "typeVersion": 2,
+      "position": [
+        624,
+        384
+      ],
+      "credentials": {
+        "googleDocsOAuth2Api": {
+          "id": "5UGiKefcUVdREYf7",
+          "name": "Google Docs account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const title = $json.title ?? '';\nconst link = $json.link ?? $json.guid ?? '';\nconst key = title.toLowerCase().normalize('NFD').replace(/[\\u0300-\\u036f]/g, '').replace(/[^a-z0-9 ]/g, '').trim();\nreturn [{json:{...$json, title, link, text:`${title} ${$json.contentSnippet ?? $json.content ?? ''}`, item_key:`brand:${key}`}}];"
+      },
+      "id": "016e792a-8760-4929-80d0-52b6ca5f9f2b",
+      "name": "Normalizar fuente4",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -576,
+        512
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO assistant_processed_items (item_key, source, title, payload) VALUES ('{{$json.item_key.replace(/'/g, \"''\")}}', 'personal_brand', '{{$json.title.replace(/'/g, \"''\")}}', '{}'::jsonb) ON CONFLICT (item_key) DO NOTHING RETURNING item_key;",
+        "options": {}
+      },
+      "id": "746b530b-3df7-4a96-8326-318137d8ab91",
+      "name": "Evitar duplicados4",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        -336,
+        512
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "NNPEvTSppGjw7rhh",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "{\"contents\":[{\"parts\":[{\"text\":\"Redacta un post de LinkedIn profesional en español, máximo 1.000 caracteres, con una reflexión útil para profesionales de IA, automatización o sector espacial. No inventes cifras ni hechos y evita tono publicitario. Noticia: {{$('Normalizar fuente').item.json.title}}. Enlace: {{$('Normalizar fuente').item.json.link}}. Contexto: {{$('Normalizar fuente').item.json.text}}\"}]}],\"generationConfig\":{\"responseMimeType\":\"application/json\",\"responseSchema\":{\"type\":\"OBJECT\",\"properties\":{\"titulo\":{\"type\":\"STRING\"},\"borrador_linkedin\":{\"type\":\"STRING\"},\"hashtags\":{\"type\":\"ARRAY\",\"items\":{\"type\":\"STRING\"}},\"enlace\":{\"type\":\"STRING\"}},\"required\":[\"titulo\",\"borrador_linkedin\",\"hashtags\",\"enlace\"]}}}",
+        "options": {}
+      },
+      "id": "6db6e9ea-d2bb-40a7-9ff6-159ecbf89b17",
+      "name": "Gemini - Borrador LinkedIn4",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -96,
+        512
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000,
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "VakiYJAkfFfFoqDy",
+          "name": "Header Auth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = JSON.parse($json.candidates?.[0]?.content?.parts?.[0]?.text ?? '{}');\nif (!data.titulo || !data.borrador_linkedin) throw new Error('JSON de Gemini inválido');\nconst tags = Array.isArray(data.hashtags) ? data.hashtags.join(' ') : (data.hashtags ?? '');\nreturn [{json:{...data, content:`${data.borrador_linkedin}\\n\\n${tags}\\n\\nFuente: ${data.enlace ?? ''}`}}];"
+      },
+      "id": "ba186a7e-ddb2-43cd-ad02-bfda64b9a956",
+      "name": "Validar JSON Gemini4",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        144,
+        512
+      ]
+    },
+    {
+      "parameters": {
+        "folderId": "1KvvOGWX9zO6VzS3BOK4Bm22CLj50U2Gt",
+        "title": "={{'LinkedIn - ' + $json.titulo}}"
+      },
+      "id": "4ae40bca-46b3-471e-818b-189f96c263c2",
+      "name": "Google Docs - Crear borrador4",
+      "type": "n8n-nodes-base.googleDocs",
+      "typeVersion": 2,
+      "position": [
+        384,
+        512
+      ],
+      "credentials": {
+        "googleDocsOAuth2Api": {
+          "id": "5UGiKefcUVdREYf7",
+          "name": "Google Docs account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentURL": "={{ 'https://docs.google.com/document/d/' + $('Google Docs - Crear borrador4').first().json.id + '/edit' }}",
+        "actionsUi": {
+          "actionFields": [
+            {
+              "action": "insert",
+              "text": "={{ $('Validar JSON Gemini4').first().json.content }}"
+            }
+          ]
+        }
+      },
+      "id": "acbf65eb-377d-4737-b81b-e3399ca34e98",
+      "name": "Google Docs - Escribir borrador4",
+      "type": "n8n-nodes-base.googleDocs",
+      "typeVersion": 2,
+      "position": [
+        624,
+        512
+      ],
+      "credentials": {
+        "googleDocsOAuth2Api": {
+          "id": "5UGiKefcUVdREYf7",
+          "name": "Google Docs account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Búsqueda diaria": {
+      "main": [
+        [
+          {
+            "node": "RSS - OpenAI",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "RSS - Google",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "RSS - Microsoft",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "RSS - NVIDIA",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "RSS - Espacio",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "RSS - OpenAI": {
+      "main": [
+        [
+          {
+            "node": "Normalizar fuente",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "RSS - Google": {
+      "main": [
+        [
+          {
+            "node": "Normalizar fuente1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "RSS - Microsoft": {
+      "main": [
+        [
+          {
+            "node": "Normalizar fuente2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "RSS - NVIDIA": {
+      "main": [
+        [
+          {
+            "node": "Normalizar fuente3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalizar fuente": {
+      "main": [
+        [
+          {
+            "node": "Evitar duplicados",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Evitar duplicados": {
+      "main": [
+        [
+          {
+            "node": "Gemini - Borrador LinkedIn",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gemini - Borrador LinkedIn": {
+      "main": [
+        [
+          {
+            "node": "Validar JSON Gemini",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validar JSON Gemini": {
+      "main": [
+        [
+          {
+            "node": "Google Docs - Crear borrador",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Docs - Crear borrador": {
+      "main": [
+        [
+          {
+            "node": "Google Docs - Escribir borrador",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "RSS - Espacio": {
+      "main": [
+        [
+          {
+            "node": "Normalizar fuente4",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalizar fuente1": {
+      "main": [
+        [
+          {
+            "node": "Evitar duplicados1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Evitar duplicados1": {
+      "main": [
+        [
+          {
+            "node": "Gemini - Borrador LinkedIn1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gemini - Borrador LinkedIn1": {
+      "main": [
+        [
+          {
+            "node": "Validar JSON Gemini1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validar JSON Gemini1": {
+      "main": [
+        [
+          {
+            "node": "Google Docs - Crear borrador1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Docs - Crear borrador1": {
+      "main": [
+        [
+          {
+            "node": "Google Docs - Escribir borrador1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalizar fuente2": {
+      "main": [
+        [
+          {
+            "node": "Evitar duplicados2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Evitar duplicados2": {
+      "main": [
+        [
+          {
+            "node": "Gemini - Borrador LinkedIn2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gemini - Borrador LinkedIn2": {
+      "main": [
+        [
+          {
+            "node": "Validar JSON Gemini2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validar JSON Gemini2": {
+      "main": [
+        [
+          {
+            "node": "Google Docs - Crear borrador2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Docs - Crear borrador2": {
+      "main": [
+        [
+          {
+            "node": "Google Docs - Escribir borrador2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalizar fuente3": {
+      "main": [
+        [
+          {
+            "node": "Evitar duplicados3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Evitar duplicados3": {
+      "main": [
+        [
+          {
+            "node": "Gemini - Borrador LinkedIn3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gemini - Borrador LinkedIn3": {
+      "main": [
+        [
+          {
+            "node": "Validar JSON Gemini3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validar JSON Gemini3": {
+      "main": [
+        [
+          {
+            "node": "Google Docs - Crear borrador3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Docs - Crear borrador3": {
+      "main": [
+        [
+          {
+            "node": "Google Docs - Escribir borrador3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalizar fuente4": {
+      "main": [
+        [
+          {
+            "node": "Evitar duplicados4",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Evitar duplicados4": {
+      "main": [
+        [
+          {
+            "node": "Gemini - Borrador LinkedIn4",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gemini - Borrador LinkedIn4": {
+      "main": [
+        [
+          {
+            "node": "Validar JSON Gemini4",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validar JSON Gemini4": {
+      "main": [
+        [
+          {
+            "node": "Google Docs - Crear borrador4",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Docs - Crear borrador4": {
+      "main": [
+        [
+          {
+            "node": "Google Docs - Escribir borrador4",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true
+  },
+  "versionId": "b7ce9516-7feb-49c8-a455-486a0aa1b3e3",
+  "meta": {
+    "instanceId": "bab5757f106fd2f71672df2c1ee2f2eae213fcf850397c195396c21f49ddb0c8"
+  },
+  "id": "ie5e8qIe9xsrNmo9",
+  "tags": []
+}

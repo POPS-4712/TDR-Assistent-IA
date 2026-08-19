@@ -1,0 +1,219 @@
+{
+  "name": "AI Personal Assistant - Playwright Jobs",
+  "nodes": [
+    {
+      "parameters": {
+        "triggerTimes": {
+          "item": [
+            {
+              "mode": "everyDay",
+              "hour": 8,
+              "minute": 30
+            }
+          ]
+        }
+      },
+      "id": "schedule",
+      "name": "Cada mañana - Playwright",
+      "type": "n8n-nodes-base.cron",
+      "typeVersion": 1.2,
+      "position": [
+        -1000,
+        80
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "manual",
+      "name": "Ejecución manual",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -1000,
+        240
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "GET",
+        "path": "assistant/playwright-jobs-standalone",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "id": "webhook",
+      "name": "Webhook - Playwright Jobs",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -1000,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const input = $json ?? {};\nconst incoming = input.query && typeof input.query === 'object'\n  ? input.query\n  : (input.body && typeof input.body === 'object' ? input.body : input);\nconst requestedSource = String(incoming.source ?? '').trim().toLowerCase();\nconst sources = requestedSource ? [requestedSource] : ['linkedin'];\nif (sources.some(source => source !== 'linkedin')) {\n  throw new Error('source debe ser linkedin');\n}\nconst baseUrl = String($env.PLAYWRIGHT_BASE_URL || 'http://playwright:3000').replace(/\\/+$/, '');\nconst textParam = value => Array.isArray(value) ? value.map(String).map(value => value.trim()).filter(Boolean).join(',') : String(value ?? '').trim();\nconst positiveInteger = (value, minimum = 1) => {\n  if (value === undefined || value === null || value === '') return null;\n  const parsed = Number(value);\n  return Number.isInteger(parsed) && parsed >= minimum ? String(parsed) : null;\n};\nconst location = textParam(incoming.location);\nconst keywords = textParam(incoming.keywords);\nconst requestedAt = new Date().toISOString();\nreturn sources.map(source => {\n  const params = new URLSearchParams();\n  if (location) params.set('location', location);\n  if (keywords) params.set('keywords', keywords);\n  for (const [name, value] of [\n    ['termsPerQuery', positiveInteger(incoming.termsPerQuery)],\n    ['maxJobsPerSearch', positiveInteger(incoming.maxJobsPerSearch)],\n    ['maxScrollSteps', positiveInteger(incoming.maxScrollSteps, 0)],\n    ['gotoTimeout', positiveInteger(incoming.gotoTimeout)],\n    ['selectorTimeout', positiveInteger(incoming.selectorTimeout)],\n  ]) {\n    if (value !== null) params.set(name, value);\n  }\n  const query = params.toString();\n  return {\n    json: {\n      source,\n      endpoint: `${baseUrl}/${source}`,\n      targetUrl: `${baseUrl}/${source}${query ? `?${query}` : ''}`,\n      requestedAt,\n    },\n  };\n});"
+      },
+      "id": "prepare",
+      "name": "Preparar solicitudes Playwright",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -720,
+        240
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{$json.targetUrl}}",
+        "options": {
+          "timeout": 180000
+        }
+      },
+      "id": "scrape",
+      "name": "HTTP - Ejecutar scraper Playwright",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -460,
+        240
+      ],
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 5000
+    },
+    {
+      "parameters": {
+        "jsCode": "const text = value => String(value ?? '').replace(/\\s+/g, ' ').trim();\nconst cleanTitle = value => {\n  const title = text(value);\n  const half = title.length / 2;\n  return Number.isInteger(half) && title.slice(0, half) === title.slice(half) ? title.slice(0, half).trim() : title;\n};\nconst normalizeLink = (value, source) => {\n  const raw = text(value);\n  if (!raw) return null;\n  try {\n    const url = new URL(raw, 'https://www.linkedin.com');\n    url.hostname = url.hostname.toLowerCase().replace(/^www\\./, '');\n    url.search = '';\n    url.hash = '';\n    url.pathname = url.pathname.replace(/\\/+$/, '') || '/';\n    return url.href;\n  } catch {\n    return raw;\n  }\n};\nconst extractId = link => {\n  if (!link) return null;\n  return link.match(/(?:-|%2D|\\/view\\/)(\\d+)(?:[/?]|$)/i)?.[1] || null;\n};\nconst arrays = ['skills', 'requirements', 'education', 'languages', 'experience', 'detectedKeywords'];\nconst expand = value => {\n  if (Array.isArray(value)) return value;\n  if (value && Array.isArray(value.jobs)) return value.jobs;\n  if (value && Array.isArray(value.data)) return value.data;\n  return value && typeof value === 'object' ? [value] : [];\n};\nconst now = new Date().toISOString();\nconst output = [];\nfor (const item of $input.all()) {\n  for (const raw of expand(item.json)) {\n    if (!raw || typeof raw !== 'object') continue;\n    const link = normalizeLink(raw.link, 'linkedin');\n    const source = 'linkedin';\n    if (source !== 'linkedin') continue;\n    const title = cleanTitle(raw.title);\n    if (!title) continue;\n    const id = text(raw.id) || extractId(link);\n    const company = text(raw.company) || null;\n    const location = text(raw.location) || null;\n    const fallback = [company, title, location].map(text).join('|').toLocaleLowerCase();\n    const identity = id ? `id:${id}` : (link ? `url:${link}` : `fallback:${fallback}`);\n    const job = {\n      ...raw,\n      id: id || null,\n      title,\n      company,\n      location,\n      link,\n      source,\n      scrapedAt: raw.scrapedAt || now,\n      item_key: `playwright:${source}:${identity}`,\n      dedupe_source: `playwright_${source}`,\n    };\n    for (const field of arrays) {\n      job[field] = Array.isArray(job[field]) ? [...new Set(job[field].map(text).filter(Boolean))] : [];\n    }\n    job.payload_json = JSON.stringify({ ...job });\n    output.push({ json: job });\n  }\n}\nreturn output.length ? output : [{ json: { __noJobs: true, item_key: '', dedupe_source: '', title: '', payload_json: '{}' } }];"
+      },
+      "id": "normalize",
+      "name": "Normalizar y validar ofertas",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -200,
+        240
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "WITH candidate (item_key, source, title, payload, is_empty) AS (VALUES (NULLIF('{{$json.item_key ? $json.item_key.replace(/'/g, \"''\") : ''}}', ''), NULLIF('{{$json.dedupe_source ? $json.dedupe_source.replace(/'/g, \"''\") : ''}}', ''), NULLIF('{{$json.title ? $json.title.replace(/'/g, \"''\") : ''}}', ''), '{{$json.payload_json.replace(/'/g, \"''\")}}'::jsonb, {{$json.__noJobs === true ? 'true' : 'false'}})), inserted AS (INSERT INTO assistant_processed_items (item_key, source, title, payload) SELECT item_key, source, title, payload FROM candidate WHERE NOT is_empty ON CONFLICT (item_key) DO NOTHING RETURNING item_key) SELECT c.item_key, c.source, c.title, c.payload, c.is_empty, (i.item_key IS NOT NULL) AS inserted FROM candidate c LEFT JOIN inserted i ON i.item_key = c.item_key;",
+        "options": {}
+      },
+      "id": "dedupe",
+      "name": "Histórico PostgreSQL - Sólo nuevos",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        60,
+        240
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "Postgres assistant"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const input = $input.all();\nconst jobs = input.filter(item => item.json.is_empty !== true && item.json.inserted === true).map(item => {\n  const payload = item.json.payload && typeof item.json.payload === 'object' ? item.json.payload : {};\n  return {\n    ...payload,\n    historyUpdatedBy: 'playwright-service',\n    preparedAt: new Date().toISOString(),\n    status: payload.status || 'new',\n  };\n});\nreturn [{\n  json: {\n    ok: true,\n    generatedAt: new Date().toISOString(),\n    scrapedCount: input.filter(item => item.json.is_empty !== true).length,\n    newCount: jobs.length,\n    sources: [...new Set(jobs.map(job => job.source).filter(Boolean))],\n    jobs,\n  },\n}];"
+      },
+      "id": "results",
+      "name": "Preparar resultados",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        320,
+        240
+      ]
+    }
+  ],
+  "connections": {
+    "Cada mañana - Playwright": {
+      "main": [
+        [
+          {
+            "node": "Preparar solicitudes Playwright",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ejecución manual": {
+      "main": [
+        [
+          {
+            "node": "Preparar solicitudes Playwright",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook - Playwright Jobs": {
+      "main": [
+        [
+          {
+            "node": "Preparar solicitudes Playwright",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar solicitudes Playwright": {
+      "main": [
+        [
+          {
+            "node": "HTTP - Ejecutar scraper Playwright",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP - Ejecutar scraper Playwright": {
+      "main": [
+        [
+          {
+            "node": "Normalizar y validar ofertas",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalizar y validar ofertas": {
+      "main": [
+        [
+          {
+            "node": "Histórico PostgreSQL - Sólo nuevos",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Histórico PostgreSQL - Sólo nuevos": {
+      "main": [
+        [
+          {
+            "node": "Preparar resultados",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "active": false,
+  "versionId": "1"
+}

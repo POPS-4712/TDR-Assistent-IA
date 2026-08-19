@@ -1,0 +1,152 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      TZ: ${TZ:-UTC}
+    volumes:
+      - automation_center_postgres_data:/var/lib/postgresql/data
+    networks:
+      - automation_center_internal
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+
+  n8n:
+    image: n8nio/n8n:1.121.3
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DB_TYPE: postgresdb
+      DB_POSTGRESDB_HOST: postgres
+      DB_POSTGRESDB_PORT: 5432
+      DB_POSTGRESDB_DATABASE: ${POSTGRES_DB}
+      DB_POSTGRESDB_USER: ${POSTGRES_USER}
+      DB_POSTGRESDB_PASSWORD: ${POSTGRES_PASSWORD}
+      N8N_ENCRYPTION_KEY: ${N8N_ENCRYPTION_KEY}
+      N8N_API_KEY: ${N8N_API_KEY}
+      N8N_HOST: n8n
+      N8N_PORT: 5678
+      N8N_PROTOCOL: http
+      N8N_SECURE_COOKIE: "false"
+      N8N_DIAGNOSTICS_ENABLED: "false"
+      N8N_PERSONALIZATION_ENABLED: "false"
+      N8N_ENFORCE_SETTINGS_FILE_PERMISSIONS: "true"
+      N8N_BLOCK_ENV_ACCESS_IN_NODE: "false"
+      N8N_RUNNERS_ENABLED: "true"
+      N8N_GIT_NODE_DISABLE_BARE_REPOS: "true"
+      TZ: ${TZ:-UTC}
+    volumes:
+      - automation_center_n8n_data:/home/node/.n8n
+      - ./automations:/files/automations:ro
+      - ./prompts:/files/prompts:ro
+      - type: bind
+        source: ${AUTOMATION_CENTER_DATA_DIR}/runtime/output
+        target: /files/output
+    networks:
+      - automation_center_internal
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:5678/healthz || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 45s
+
+  playwright:
+    build:
+      context: ./playwright
+    restart: unless-stopped
+    working_dir: /app
+    networks:
+      - automation_center_internal
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:3000/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  backend:
+    build:
+      context: ./backend
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      n8n:
+        condition: service_healthy
+      playwright:
+        condition: service_healthy
+    environment:
+      APP_VERSION: ${APP_VERSION}
+      ENVIRONMENT: production
+      USER_DATA_DIR: /automation-center-data
+      PORTABLE_MODE: ${PORTABLE_MODE:-false}
+      DOCKER_COMPOSE_PROJECT: automation-center
+      LOCAL_SERVICE_CONTROL_ENABLED: "false"
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      N8N_API_URL: http://n8n:5678
+      N8N_API_KEY: ${N8N_API_KEY}
+      PLAYWRIGHT_API_URL: http://playwright:3000
+      PLAYWRIGHT_BASE_URL: http://playwright:3000
+      OAUTH_REDIRECT_BASE_URL: http://localhost:${AUTOMATION_CENTER_UI_PORT}
+      SECRET_KEY: ${BACKEND_SECRET_KEY}
+      ENABLE_DATABASE_MIGRATIONS: "true"
+      TZ: ${TZ:-UTC}
+    volumes:
+      - type: bind
+        source: ${AUTOMATION_CENTER_DATA_DIR}
+        target: /automation-center-data
+      - ./automations:/app/automations:ro
+    networks:
+      - automation_center_internal
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8000/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        VITE_API_BASE_URL: /api/v1
+        NGINX_CONFIG: nginx.prod.conf
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:${AUTOMATION_CENTER_UI_PORT:-3001}:80"
+    networks:
+      - automation_center_internal
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://localhost/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+
+volumes:
+  automation_center_postgres_data:
+    name: automation-center-postgres-data${AUTOMATION_CENTER_INSTANCE_SUFFIX:-}
+  automation_center_n8n_data:
+    name: automation-center-n8n-data${AUTOMATION_CENTER_INSTANCE_SUFFIX:-}
+
+networks:
+  automation_center_internal:
+    name: automation-center-internal${AUTOMATION_CENTER_INSTANCE_SUFFIX:-}
+    driver: bridge

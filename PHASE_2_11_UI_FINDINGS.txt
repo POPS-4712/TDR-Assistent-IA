@@ -1,0 +1,12 @@
+Verificación visual local — Phase 2.11
+Fecha: 2026-08-19
+Ruta: http://localhost:3001/automations
+
+Hallazgos confirmados:
+- La interfaz carga correctamente y ejecuta preflight automáticamente.
+- test-automation aparece como “Ready to install” con la única acción Install.
+- Las automatizaciones reales aparecen bloqueadas, con requisitos de runtime, cuentas faltantes y mensajes explícitos de bloqueo seguro.
+- Tras configurar PLAYWRIGHT_BASE_URL en el backend y validar /health local, los bloqueos de runtime de Playwright ya no aparecen para laboral ni playwright-jobs.
+- El texto de la tarjeta Laboral todavía mostraba una descripción previamente persistida con “InfoJobs”, aunque el manifest ya fue corregido para declarar solo LinkedIn. Se requiere sincronizar metadata no operacional desde el manifest durante el descubrimiento/preflight sin alterar workflows ni estados instalados.
+
+No se mostraron valores de credenciales ni secretos en la interfaz.

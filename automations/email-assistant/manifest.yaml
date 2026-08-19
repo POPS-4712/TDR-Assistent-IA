@@ -1,0 +1,52 @@
+id: email-assistant
+name: Email Assistant
+description: AI-powered email management with Gmail integration and Google Calendar
+version: 1.0.0
+status: disabled
+category: communication
+icon: mail
+
+requirements:
+  - provider: google
+    type: oauth2
+    scopes:
+      - https://www.googleapis.com/auth/gmail.modify
+      - https://www.googleapis.com/auth/calendar
+      - https://www.googleapis.com/auth/gmail.readonly
+  - provider: gemini
+    type: api_key
+  - provider: postgresql
+    type: connection
+
+dependencies:
+  - google-oauth2
+  - postgresql
+
+n8n:
+  workflow_file: workflow.json
+  credential_mapping:
+    gmailOAuth2: google
+    googleCalendarOAuth2Api: google
+    postgres: postgresql
+    # Note: Workflow uses GEMINI_API_KEY env var directly, not n8n credential
+
+setup:
+  - description: "Configure Google OAuth2 credentials with Gmail and Calendar scopes"
+  - description: "Add Gemini API key as environment variable GEMINI_API_KEY"
+  - description: "Configure PostgreSQL connection for deduplication (credential name: 'Postgres assistant')"
+  - description: "Set GEMINI_MODEL environment variable (e.g., gemini-2.5-flash)"
+
+teardown:
+  - description: "Deactivate workflow in n8n"
+  - description: "Remove automation credentials mapping"
+  - description: "Delete automation metadata"
+
+metadata:
+  auto_enable: false
+  source_workflow: "01-email-manager.json"
+  actual_ai_provider: "gemini"
+  actual_notification: "console_log"
+  env_vars_required:
+    - GEMINI_API_KEY
+    - GEMINI_MODEL
+    - TZ

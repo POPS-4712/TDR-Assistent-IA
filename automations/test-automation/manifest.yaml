@@ -1,0 +1,25 @@
+id: test-automation
+name: Test Automation
+description: Simple test automation for validating the automation manager
+version: 1.0.0
+status: disabled
+category: testing
+icon: flask-conical
+
+requirements: []
+
+dependencies: []
+
+n8n:
+  workflow_file: workflow.json
+  credential_mapping: {}
+
+setup:
+  - description: "No setup required for test automation"
+
+teardown:
+  - description: "No teardown required for test automation"
+
+metadata:
+  auto_enable: false
+  test_only: true

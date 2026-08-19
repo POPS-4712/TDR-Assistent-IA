@@ -1,0 +1,26 @@
+# Environment
+
+This project runs on Windows using PowerShell.
+
+IMPORTANT:
+- Do NOT use Unix-only commands such as head, tail, grep, sed, awk, cat, rm, cp or mv.
+- Prefer PowerShell commands.
+- Use Get-ChildItem, Select-Object -First, Select-String and Get-Content.
+- Do not assume bash, zsh or GNU utilities are installed.
+- Always use Windows-compatible commands.
+
+# Project rules
+
+- Analyze existing files before modifying them.
+- Reuse existing Playwright, n8n and PostgreSQL implementations.
+- Do not rebuild the project from scratch.
+- Do not delete existing functionality.
+- Do not delete databases or Docker volumes.
+- Do not modify secrets or credentials.
+- LinkedIn is the labor source.
+- Playwright is the scraper.
+- n8n is the orchestrator.
+- PostgreSQL is used for persistence and deduplication.
+- Telegram is the final notification channel.
+- Do NOT introduce LinkedIn RSS.
+- Do NOT introduce InfoJobs.

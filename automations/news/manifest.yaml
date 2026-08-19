@@ -1,0 +1,53 @@
+id: news
+name: News Aggregator
+description: Automated news collection and summarization with AI
+version: 1.0.0
+status: disabled
+category: information
+icon: newspaper
+
+requirements:
+  - provider: postgresql
+    type: connection
+  - provider: gemini
+    type: api_key
+  - provider: whatsapp_cloud
+    type: structured
+
+dependencies:
+  - postgresql
+
+n8n:
+  workflow_file: workflow.json
+  credential_mapping:
+    postgres: postgresql
+    # Note: Workflow uses GEMINI_API_KEY and WhatsApp env vars directly
+    # Not mapped to n8n credentials currently
+
+setup:
+  - description: "Configure PostgreSQL connection for article storage (credential name: 'Postgres assistant')"
+  - description: "Add Gemini API key as environment variable GEMINI_API_KEY"
+  - description: "Set GEMINI_MODEL environment variable (e.g., gemini-2.5-flash)"
+  - description: "Conecte WhatsApp Cloud API en Accounts; el workflow legado conserva sus variables de entorno hasta una migración explícita."
+  - description: "  - WHATSAPP_ACCESS_TOKEN"
+  - description: "  - WHATSAPP_PHONE_NUMBER_ID"
+  - description: "  - WHATSAPP_RECIPIENT"
+  - description: "  - WHATSAPP_API_VERSION"
+
+teardown:
+  - description: "Deactivate workflow in n8n"
+  - description: "Remove automation credentials mapping"
+  - description: "Delete automation metadata"
+
+metadata:
+  auto_enable: false
+  source_workflow: "03-news.json"
+  actual_ai_provider: "gemini"
+  actual_notification: "whatsapp"
+  env_vars_required:
+    - GEMINI_API_KEY
+    - GEMINI_MODEL
+    - WHATSAPP_ACCESS_TOKEN
+    - WHATSAPP_PHONE_NUMBER_ID
+    - WHATSAPP_RECIPIENT
+    - WHATSAPP_API_VERSION
