@@ -414,7 +414,8 @@ class TestAutomationManager:
         """Preflight reports readiness without importing a workflow or touching n8n."""
         with patch.object(automation_manager, '_validate_dependencies', return_value=[]):
             with patch.object(automation_manager, '_validate_credentials', return_value=[]):
-                result = await automation_manager.preflight_automation("test-auto")
+                with patch.object(automation_manager, '_validate_runtime_dependencies', return_value=[]):
+                    result = await automation_manager.preflight_automation("test-auto")
         assert result["automation_id"] == "test-auto"
         assert result["status"] == "blocked"  # the fixture intentionally has no webhook node
         assert result["mutations_applied"] is False
