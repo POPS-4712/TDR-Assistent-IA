@@ -164,9 +164,9 @@ jobs:
           $vcpkg = Join-Path $env:RUNNER_TEMP 'vcpkg'
           git clone --depth 1 https://github.com/microsoft/vcpkg $vcpkg
           & (Join-Path $vcpkg 'bootstrap-vcpkg.bat') -disableMetrics
-          & (Join-Path $vcpkg 'vcpkg.exe') install openssl:arm64-windows
+          & (Join-Path $vcpkg 'vcpkg.exe') install openssl:arm64-windows-static-md
           "VCPKG_ROOT=$vcpkg" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
-          'VCPKG_DEFAULT_TRIPLET=arm64-windows' | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          'VCPKG_DEFAULT_TRIPLET=arm64-windows-static-md' | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
 
       - name: Install backend test dependencies
         shell: bash
