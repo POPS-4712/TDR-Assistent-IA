@@ -99,6 +99,19 @@ Durante la primera ejecución de publicación, el paso de herramientas Linux x64
 | `32283195989` | Segundo intento; timeout externo de creación de artifact macOS x64 | **cancelled** | No |
 | [`32284849538`][2] | Intento final con matriz, ensamblado y publicación | **success** | **Sí** |
 
+## Criterios incorporados del adjunto
+
+Los criterios aportados se han incorporado como requisitos de aceptación del cierre. La evidencia final los satisface sin reinterpretar una espera prolongada como fallo: las dos ejecuciones canceladas se documentan como incidencias de infraestructura con evidencia concreta —un paso Linux x64 sin actividad útil durante un periodo prolongado y un timeout de `ArtifactService` tras cinco reintentos—, y no se usaron para declarar éxito. La única ejecución empleada como prueba de publicación es el run final exitoso. [2] [3]
+
+| Requisito incorporado | Evidencia aplicable | Resultado |
+|---|---|---|
+| Seis runners nativos y sin cross-build | Seis jobs nativos exitosos en el run final | **PASS** |
+| Diez artefactos finales exactos | Ensamblado exitoso y manifiesto publicado con diez entradas | **PASS** |
+| Tests, arquitectura y escaneo antes de publicar | Jobs de build y revalidación de ensamblado exitosos | **PASS** |
+| SHA-256 y metadatos de release | `SHA256SUMS.txt`, `release-manifest.json` y digest de activos coincidentes | **PASS** |
+| No publicar release parcial | Dos intentos no exitosos documentados sin publicación; solo el run final creó el tag | **PASS** |
+| Declarar READY únicamente con evidencia real | Run `32284849538` finalizado correctamente y release `v1.0.0` publicada | **PASS** |
+
 ## Conclusión
 
 La Phase 2.15 queda **completada**. Automation Center `v1.0.0` dispone de una release real, reproducible desde el commit etiquetado, con diez artefactos nativos de Windows, Linux y macOS. Cada artefacto publicado cuenta con un SHA-256 verificable y el tag se creó solo después de que la matriz completa y los gates de ensamblado y seguridad finalizaran correctamente.
