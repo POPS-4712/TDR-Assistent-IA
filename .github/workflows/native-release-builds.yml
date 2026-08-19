@@ -4,18 +4,12 @@ on:
   workflow_dispatch:
     inputs:
       target:
-        description: Native target to build. Use all for the only release-eligible path.
+        description: Full native target matrix required for release validation.
         required: true
         default: all
         type: choice
         options:
           - all
-          - windows-x64
-          - windows-arm64
-          - linux-x64
-          - linux-arm64
-          - macos-x64
-          - macos-arm64
       create_release:
         description: Create the public GitHub release only after every native target passes.
         required: true
@@ -75,7 +69,7 @@ jobs:
   build:
     name: ${{ matrix.target }} native build
     needs: preflight
-    if: ${{ inputs.target == 'all' || inputs.target == matrix.target }}
+    if: ${{ inputs.target == 'all' }}
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 60
     strategy:
