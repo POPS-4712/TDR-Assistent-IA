@@ -9,6 +9,7 @@ available. It is intentionally not imported by the FastAPI container.
 from __future__ import annotations
 
 import argparse
+import getpass
 import json
 import os
 import platform
@@ -125,7 +126,6 @@ def write_runtime_env(data_root: Path, ui_port: int = 3001) -> Path:
         "POSTGRES_USER": "automation_center",
         "POSTGRES_PASSWORD": secrets.token_urlsafe(32),
         "N8N_ENCRYPTION_KEY": secrets.token_urlsafe(32),
-        "N8N_API_KEY": secrets.token_urlsafe(32),
         "BACKEND_SECRET_KEY": secrets.token_urlsafe(48),
         "N8N_HOST": "localhost",
         "N8N_PROTOCOL": "http",
@@ -303,6 +303,31 @@ def run_service_command(action: str, data_root: Path, services: list[str] | None
     }
 
 
+def set_runtime_env_value(data_root: Path, name: str, value: str) -> Path:
+    """Replace one private runtime setting without displaying its value."""
+    cleaned = value.strip()
+    if not cleaned:
+        raise ValueError(f"{name} cannot be empty")
+    env_file = write_runtime_env(data_root)
+    prefix = f"{name}="
+    lines = [line for line in env_file.read_text(encoding="utf-8").splitlines() if not line.startswith(prefix)]
+    lines.append(f"{name}={cleaned}")
+    env_file.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    if platform_id() != "windows":
+        env_file.chmod(0o600)
+    return env_file
+
+
+def configure_n8n_api_key(data_root: Path) -> dict[str, Any]:
+    """Store a user-created n8n Public API key through a terminal prompt without echoing it."""
+    api_key = getpass.getpass("n8n Public API key (input hidden): ")
+    set_runtime_env_value(data_root, "N8N_API_KEY", api_key)
+    return {
+        "success": True,
+        "message": "n8n Public API key stored in private runtime configuration; restart local services to apply it",
+    }
+
+
 def _runtime_env_value(data_root: Path, name: str, default: str | None = None) -> str | None:
     env_file = runtime_paths(data_root)["env"]
     if not env_file.exists():
@@ -380,7 +405,7 @@ def mark_first_run_complete(data_root: Path) -> Path:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Automation Center local service manager")
-    parser.add_argument("command", choices=["init", "start", "stop", "restart", "status", "health", "diagnose", "backup-metadata", "prepare-upgrade", "remove-data", "complete-first-run"])
+    parser.add_argument("command", choices=["init", "start", "stop", "restart", "status", "health", "diagnose", "backup-metadata", "prepare-upgrade", "configure-n8n-api-key", "remove-data", "complete-first-run"])
     parser.add_argument("--data-dir", type=Path)
     parser.add_argument("--portable", action="store_true")
     parser.add_argument("--service", action="append", dest="services", choices=SERVICES)
@@ -413,6 +438,8 @@ def main() -> int:
             result = diagnose(root)
         elif args.command in {"backup-metadata", "prepare-upgrade"}:
             result = backup_metadata(root)
+        elif args.command == "configure-n8n-api-key":
+            result = configure_n8n_api_key(root)
         elif args.command == "remove-data":
             result = remove_user_data(root, args.confirm_remove_data)
         else:

@@ -35,9 +35,11 @@ def main() -> int:
         errors.append("backend version does not match VERSION")
     if frontend.get("version") != VERSION:
         errors.append("frontend version does not match VERSION")
-    for expected in ("127.0.0.1:${AUTOMATION_CENTER_UI_PORT", "automation_center_postgres_data", "automation_center_n8n_data", "nginx.prod.conf"):
+    for expected in ("127.0.0.1:${AUTOMATION_CENTER_UI_PORT", "automation_center_postgres_data", "automation_center_n8n_data", "nginx.prod.conf", "http://127.0.0.1/health"):
         if expected not in compose:
             errors.append(f"production compose is missing {expected}")
+    if "http://localhost/health" in compose:
+        errors.append("production compose must not use localhost for the frontend healthcheck")
     dist = ROOT / "dist"
     manifest_path = dist / "release-manifest.json"
     unexpected = [

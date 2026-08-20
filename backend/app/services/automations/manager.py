@@ -250,7 +250,21 @@ class AutomationManager:
         mapping_failures = [item for item in account_resolution["credential_mappings"] if not item["compatible"]]
         checks.append({"name": "credential_mapping", "status": "pass" if not mapping_failures else "blocked", "details": account_resolution["credential_mappings"]})
 
-        runtime_dependencies = await self._validate_runtime_dependencies(manifest)
+        public_api_auth = await self.n8n_client.validate_public_api_authentication()
+        public_api_status = public_api_auth.get("status", "unavailable")
+        public_api_messages = {
+            "not_configured": ["n8n Public API authentication not configured"],
+            "rejected": ["n8n Public API authentication rejected or revoked"],
+            "unavailable": ["n8n Public API authentication unavailable"],
+        }
+        public_api_blockers = public_api_messages.get(public_api_status, [])
+        checks.append({
+            "name": "n8n_public_api_auth",
+            "status": "pass" if public_api_status == "valid" else "blocked",
+            "details": [public_api_status],
+        })
+
+        runtime_dependencies = [*(await self._validate_runtime_dependencies(manifest)), *public_api_blockers]
         checks.append({"name": "runtime_dependencies", "status": "pass" if not runtime_dependencies else "blocked", "details": runtime_dependencies})
 
         checks.append({

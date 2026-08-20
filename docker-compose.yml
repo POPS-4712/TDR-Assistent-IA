@@ -58,7 +58,6 @@ services:
       N8N_LOG_OUTPUT: console
       N8N_ENFORCE_SETTINGS_FILE_PERMISSIONS: "true"
       N8N_PROXY_HOPS: 1
-      N8N_API_KEY: ${N8N_API_KEY}
       PLAYWRIGHT_BASE_URL: ${PLAYWRIGHT_BASE_URL:-http://playwright:3000}
       EXECUTIONS_MODE: regular
       EXECUTIONS_DATA_SAVE_ON_ERROR: all
@@ -128,7 +127,7 @@ services:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       N8N_API_URL: http://n8n:5678
-      N8N_API_KEY: ${N8N_API_KEY}
+      N8N_API_KEY: ${N8N_API_KEY:-}
       PLAYWRIGHT_API_URL: http://playwright:3000
       PLAYWRIGHT_BASE_URL: ${PLAYWRIGHT_BASE_URL:-http://playwright:3000}
       OAUTH_REDIRECT_BASE_URL: ${OAUTH_REDIRECT_BASE_URL:-http://localhost:8000}
@@ -158,6 +157,12 @@ services:
       - "3001:80"
     networks:
       - assistant_network
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
 
 volumes:
   postgres_data:

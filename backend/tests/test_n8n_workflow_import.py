@@ -2,6 +2,7 @@
 
 from unittest.mock import AsyncMock
 
+import httpx
 import pytest
 
 from app.services.n8n.client import N8NClient
@@ -51,3 +52,37 @@ async def test_deactivate_workflow_uses_public_api_deactivate_route():
         "POST",
         "/api/v1/workflows/workflow-123/deactivate",
     )
+
+
+@pytest.mark.asyncio
+async def test_public_api_authentication_requires_configured_key():
+    """Missing configuration is blocked before making a network call."""
+    client = N8NClient()
+    client.api_key = None
+
+    assert await client.validate_public_api_authentication() == {"status": "not_configured"}
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("status_code", "expected"),
+    [(200, "valid"), (401, "rejected"), (403, "rejected"), (500, "unavailable")],
+)
+async def test_public_api_authentication_classifies_response_without_exposing_content(status_code, expected):
+    """Only the safe status classification leaves the n8n client boundary."""
+    async def handler(request: httpx.Request) -> httpx.Response:
+        assert request.url.path == "/api/v1/workflows"
+        assert request.url.params["limit"] == "1"
+        return httpx.Response(status_code, json={"opaque": "response"})
+
+    client = N8NClient()
+    client.api_key = "test-public-api-key"
+    client.client = httpx.AsyncClient(
+        base_url=client.base_url,
+        headers=client._get_headers(),
+        transport=httpx.MockTransport(handler),
+    )
+    try:
+        assert await client.validate_public_api_authentication() == {"status": expected}
+    finally:
+        await client.client.aclose()

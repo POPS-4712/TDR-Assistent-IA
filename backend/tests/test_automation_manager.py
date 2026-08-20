@@ -352,6 +352,9 @@ class TestAutomationManager:
         client.deactivate_workflow = AsyncMock(return_value=None)
         client.delete_workflow = AsyncMock(return_value=None)
         client.get_workflow = AsyncMock(return_value={"name": "Test", "nodes": []})
+        client.validate_public_api_authentication = AsyncMock(return_value={"status": "valid"})
+
+
         
         # Make it work as async context manager - __aenter__ needs to accept self
         async def mock_aenter(self):
@@ -421,6 +424,22 @@ class TestAutomationManager:
         assert result["status"] == "blocked"  # the fixture intentionally has no webhook node
         assert result["mutations_applied"] is False
         assert any(check["name"] == "execution_trigger" for check in result["checks"])
+        mock_n8n_client.import_workflow.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_preflight_blocks_unconfigured_n8n_public_api(self, automation_manager, mock_n8n_client):
+        """A missing Public API key blocks installation without mutating n8n."""
+        account_resolution = {"accounts": [], "credential_mappings": [], "missing_requirements": []}
+        mock_n8n_client.validate_public_api_authentication = AsyncMock(return_value={"status": "not_configured"})
+        with patch.object(automation_manager, '_validate_dependencies', return_value=[]):
+            with patch.object(automation_manager, '_resolve_manifest_accounts', return_value=account_resolution):
+                with patch.object(automation_manager, '_validate_runtime_dependencies', return_value=[]):
+                    result = await automation_manager.preflight_automation("test-auto")
+
+        auth_check = next(check for check in result["checks"] if check["name"] == "n8n_public_api_auth")
+        assert result["status"] == "blocked"
+        assert auth_check == {"name": "n8n_public_api_auth", "status": "blocked", "details": ["not_configured"]}
+        assert "n8n Public API authentication not configured" in result["missing_requirements"]
         mock_n8n_client.import_workflow.assert_not_called()
 
     @pytest.mark.asyncio

@@ -109,7 +109,38 @@ class N8NClient:
         """
         await self._request("DELETE", f"/api/v1/credentials/{credential_id}")
     
+    async def validate_public_api_authentication(self) -> Dict[str, str]:
+        """Validate configured Public API access with a read-only workflow listing.
+
+        The result intentionally contains only a safe status classification and
+        never a response body, API key, or authentication detail.
+        """
+        if not self.api_key:
+            return {"status": "not_configured"}
+        needs_close = False
+        if not self.client:
+            self.client = httpx.AsyncClient(
+                base_url=self.base_url,
+                headers=self._get_headers(),
+                timeout=10.0,
+            )
+            needs_close = True
+        try:
+            response = await self.client.get("/api/v1/workflows", params={"limit": 1})
+            if 200 <= response.status_code < 300:
+                return {"status": "valid"}
+            if response.status_code in {401, 403}:
+                return {"status": "rejected"}
+            return {"status": "unavailable"}
+        except httpx.HTTPError:
+            return {"status": "unavailable"}
+        finally:
+            if needs_close and self.client:
+                await self.client.aclose()
+                self.client = None
+
     async def get_workflow(self, workflow_id: str) -> Dict[str, Any]:
+
         """
         Get workflow details from n8n.
         
